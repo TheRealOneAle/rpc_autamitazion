@@ -59,16 +59,42 @@ rows = cur.fetchall()
 query2= """
     select count(*) from problemtable;
 """
-cur.execute(query2)
-cantidad_problemas = int(cur.fetchall())
-problemas_team = [[0 for _ in range(cantidad_problemas)] for _ in range(10)]
+teams = [row[2] for row in rows]
 
-for i in range (10):
-    for j in range (cantidad_problemas):
-        
+queryTeamsAC = """
+SELECT DISTINCT usernumber, runproblem
+FROM runtable
+WHERE runanswer = 1
+AND usernumber = ANY(%s);
+"""
+cur.execute(queryTeamsAC, (teams,))
+teamsAC = cur.fetchall()
+cur.execute(query2)
+cantidadProblemas = cur.fetchone()[0] - 1
+
+teamsIndex = {team: i for i, team in enumerate(teams)}
+
+problemasTeam = [
+    [0 for _ in range(cantidadProblemas)]
+    for _ in range(10)
+]
+
+for team, problem in teamsAC:
+    if team in teamsIndex:
+        i = teamsIndex[team]
+        j = problem - 1  # si empieza en 1
+
+        if 0 <= j < cantidadProblemas:
+            problemasTeam[i][j] = 1
+
 
 cur.close()
 conn.close()
+
+headers = ""
+for i in range(cantidadProblemas):
+    letra = chr(65 + i)  # A, B, C...
+    headers += f"<th>{letra}</th>"
 
 rows_html = ""
 for i, r in enumerate(rows):
@@ -80,13 +106,20 @@ for i, r in enumerate(rows):
     elif i == 2:
         style = 'style="background-color: #80C491;"'
 
+    
     rows_html += f"""
     <tr {style}>
         <td>{i}</td>
         <td class="team-cell">
             <img src="flags/{r[1].lower()}.svg" class="flag">
                 {r[0]}
-            </td>
+        </td>
+        problemas_html = ""
+            for j in range(cantidadProblemas):
+                if problemasTeameam[i][j] == 1:
+                    problemas_html += '<td class="ok">✔</td>'
+                else:
+                    problemas_html += '<td class="fail">-</td>'
         <td>{r[3]} ({r[4]})</td>
     </tr>
     """
@@ -100,7 +133,7 @@ html = f"""
         display: flex;
         align-items: center;
         gap: 10px;
-        justify-content: center;
+        justify-content: left;
     }}
     
     .flag {{
@@ -163,6 +196,7 @@ html = f"""
 <tr>
     <th>#</th>
     <th>Equipo</th>
+    {headers}
     <th>Total</th>
 </tr>
 
