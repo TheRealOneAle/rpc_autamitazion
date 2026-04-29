@@ -1,4 +1,6 @@
 import psycopg2
+import imgkit
+from html2image import Html2Image
 
 # 🔹 Conexión
 conn = psycopg2.connect(
@@ -90,108 +92,102 @@ for team, problem in teamsAC:
 
 cur.close()
 conn.close()
-
 headers = ""
 for i in range(cantidadProblemas):
-    letra = chr(65 + i)  # A, B, C...
-    headers += f"<th>{letra}</th>"
-
+    headers += f"<th>{chr(65 + i)}</th>"
 rows_html = ""
 for i, r in enumerate(rows):
     style = ""
     if i == 0:
-        style = 'style="background-color: #FFF673;"'
+        style = 'style="background-color:#FFF673;"'
     elif i == 1:
-        style = 'style="background-color: #9FCDD6;"'
+        style = 'style="background-color:#9FCDD6;"'
     elif i == 2:
-        style = 'style="background-color: #80C491;"'
-
-    
+        style = 'style="background-color:#80C491;"'
+    problemasHtml = ""
+    for j in range(cantidadProblemas):
+        if problemasTeam[i][j] == 1:
+            problemasHtml += f'<td class="problemTeam"><img src="file:///home/alejo/Proyectos/microservicios/Proyecto_Boca/generarglobos/globosgenerados/{chr(65 + j)}.png" class="balloon"></td>'
+        else:
+            problemasHtml += '<td>-</td>'
     rows_html += f"""
     <tr {style}>
-        <td>{i}</td>
-        <td class="team-cell">
-            <img src="flags/{r[1].lower()}.svg" class="flag">
-                {r[0]}
+        <td class="numequipo">{i}</td>
+        <td class="team-col">
+            <img src="file:///home/alejo/Proyectos/microservicios/Proyecto_Boca/generartabla/flags/{r[1].lower()}.svg" class="flag">
+            <span>{r[0]}</span>
         </td>
-        problemas_html = ""
-            for j in range(cantidadProblemas):
-                if problemasTeameam[i][j] == 1:
-                    problemas_html += '<td class="ok">✔</td>'
-                else:
-                    problemas_html += '<td class="fail">-</td>'
-        <td>{r[3]} ({r[4]})</td>
+        {problemasHtml}
+        <td class="puntos">{r[3]} ({r[4]})</td>
     </tr>
     """
-
-# 🔹 HTML completo
 html = f"""
 <html>
 <head>
 <style>
-    .team-cell {{
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        justify-content: left;
-    }}
-    
-    .flag {{
-        width: 25px;
-        height: 25px;
-        border-radius: 50%;
-        object-fit: cover;
-    }}
-
-    .cabecera {{
-        display: flex;
-        align-items: center;   /* alinea verticalmente */
-        justify-content: center; /* centra todo horizontalmente */
-        gap: 15px; /* espacio entre logo y texto */
-    }}
-    
-    .logorpc{{
-        width: 100px;
-    }}    
-
-    body {{
-        font-family: Arial, sans-serif;
-        background-color: #f4f6f7;
-    }}
-    h2 {{
-        text-align: center;
-    }}
-    table {{
-        border-collapse: collapse;
-        margin: auto;
-        width: 60%;
-        font-size: 18px;
-        background: white;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
-    }}
-    th {{
-        background-color: #CF1F4A;
-        color: white;
-        padding: 12px;
-    }}
-    td {{
-        padding: 10px;
-        text-align: center;
-    }}
-    tr:nth-child(even) {{
-        background-color: #f2f2f2;
-    }}
+body {{
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f7;
+}}
+.cabecera {{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+}}
+.logorpc {{
+    width: 100px;
+}}
+table {{
+    border-collapse: collapse;
+    margin: auto;
+    width: 65%;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+}}
+th {{
+    background-color: #CF1F4A;
+    color: white;
+    padding: 12px;
+}}
+td {{
+    vertical-align: middle
+}}
+.numequipo {{
+    text-align: center;
+}}
+.puntos{{
+    text-align: center;
+}}
+.problemTeam {{
+    text-align: center;
+}}
+tr:nth-child(even) {{
+    background-color: #f2f2f2;
+}}
+.balloon {{
+    width: 28px;
+}}
+.flag {{
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    vertical-align: middle
+}}
+.team-col {{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+}}
 </style>
 </head>
 <body>
-
 <div class="cabecera">
-<img src="logorpc/rpc.png" class="logorpc">
-<h2>Top 10 Latinoamerica</h2>
+    <img src="logorpc/rpc.png" class="logorpc">
+    <h2>Top 10 Latinoamerica</h2>
 </div>
-
 <table>
 <tr>
     <th>#</th>
@@ -199,14 +195,17 @@ html = f"""
     {headers}
     <th>Total</th>
 </tr>
-
 {rows_html}
-
 </table>
-
 </body>
 </html>
 """
 
 with open("ranking.html", "w", encoding="utf-8") as f:
     f.write(html)
+    
+#imgkit.from_file('ranking.html', 'ranking.jpg')
+
+hti = Html2Image()
+hti.screenshot('ranking.html', save_as='out.png')
+

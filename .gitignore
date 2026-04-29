@@ -1,2 +1,4 @@
-generartabla/*.html
-generartabla/.venv
+*.html
+.venv
+*.jpg
+globosgenerados
