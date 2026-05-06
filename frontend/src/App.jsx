@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import './App.css'
 
-const API_BASE = ''
-
 function App() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -14,14 +12,14 @@ function App() {
     setTableUrl('')
 
     try {
-      const response = await fetch(`${API_BASE}/api/generate-table`, {
+      const response = await fetch('/api/generate-table', {
         method: 'POST'
       })
       const data = await response.json()
-      
+
       if (data.status === 'success') {
         setMessage('Tabla generada exitosamente')
-        setTableUrl(`${API_BASE}/api/table-image`)
+        setTableUrl('/api/table-image')
       } else {
         setMessage(`Error: ${data.message}`)
       }

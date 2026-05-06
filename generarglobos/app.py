@@ -23,14 +23,25 @@ def generate_globos():
     if not missing_globos:
         return jsonify({"status": "success", "message": "Globos already generated"}), 200
     
-    # Run the generation script
+    # Import and run the generation function directly
     try:
-        result = subprocess.run([sys.executable, SCRIPT_PATH], 
-                                capture_output=True, text=True, cwd=os.path.dirname(__file__))
-        if result.returncode != 0:
-            return jsonify({"status": "error", "message": result.stderr}), 500
-        return jsonify({"status": "success", "message": "Globos generated successfully"}), 200
+        # Make sure globosgenerados directory exists
+        os.makedirs(GLOBOS_DIR, exist_ok=True)
+        
+        # Import the module and call the function
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("generarglobos_mod", SCRIPT_PATH)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        
+        success, msg = mod.generar_globos()
+        if success:
+            return jsonify({"status": "success", "message": msg}), 200
+        else:
+            return jsonify({"status": "error", "message": msg}), 500
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/status', methods=['GET'])

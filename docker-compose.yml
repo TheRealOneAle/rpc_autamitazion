@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:15
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - ./bd/backup/bkboca_2025_10:/docker-entrypoint-initdb.d/bkboca.sql
     environment:
@@ -19,6 +19,7 @@ services:
       - "3001:3001"
     environment:
       - DB_HOST=postgres
+      - DB_PORT=5432
       - DB_NAME=bkboca
       - DB_USER=postgres
       - DB_PASS=1234
