@@ -34,11 +34,17 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 
+# Database dumps (large files)
+bd/backup/bkboca_2025_10
+bd/backup/*.sql
+bd/backup/*.dump
+*.sql
+*.dump
+
 # Database
 *.db
 *.sqlite
 *.sqlite3
-bkboca_2025_10
 
 # Images and media
 *.jpg
@@ -68,6 +74,68 @@ ranking.jpg
 .Spotlight-V100
 .Trashes
 ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Docker
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
+*.csv
+
+# Backup files
+*.backup
+*.bak
+*.old
+*~
+
+# Large data files
+*.dat
+
+# Docker (local)
+postgres/
+
+# System files
+.DS_Store
 Thumbs.db
 
 # IDE
