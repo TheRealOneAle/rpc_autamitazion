@@ -38,7 +38,7 @@ package-lock.json
 *.db
 *.sqlite
 *.sqlite3
-bkbook.db
+bkboca_2025_10
 
 # Images and media
 *.jpg
