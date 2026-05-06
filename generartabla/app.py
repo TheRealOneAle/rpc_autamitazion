@@ -4,11 +4,52 @@ import subprocess
 import sys
 import requests
 import time
+import json
+import pika
 
 app = Flask(__name__)
 
 # URL del servicio bd
 BD_SERVICE_URL = os.environ.get("BD_SERVICE_URL", "http://bd:3001")
+
+RABBIT_HOST = os.environ.get("RABBIT_HOST", "rabbitmq")
+RABBIT_USER = os.environ.get("RABBIT_USER", "rpc")
+RABBIT_PASS = os.environ.get("RABBIT_PASS", "rpc1234")
+EXCHANGE = "rpc.events"
+ROUTING_KEY = "ranking.generado"
+COACH_SERVICE_URL = os.environ.get("COACH_SERVICE_URL", "http://coach-service:5003")
+
+def publish_ranking_event(ranking_rows, cantidad_problemas):
+    """Publica evento ranking.generado en RabbitMQ."""
+    try:
+        params = pika.ConnectionParameters(
+            host=RABBIT_HOST,
+            credentials=pika.PlainCredentials(RABBIT_USER, RABBIT_PASS),
+            heartbeat=30, blocked_connection_timeout=10,
+        )
+        conn = pika.BlockingConnection(params)
+        ch = conn.channel()
+        ch.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
+        ch.queue_declare(queue="ranking_queue", durable=True)
+        ch.queue_bind(exchange=EXCHANGE, queue="ranking_queue", routing_key=ROUTING_KEY)
+
+        payload = {
+            "ranking": [
+                {"userfullname": r[0], "country": r[1], "usernumber": r[2],
+                 "problemas_resueltos": r[3], "points": float(r[4]) if r[4] is not None else 0}
+                for r in ranking_rows
+            ],
+            "cantidad_problemas": cantidad_problemas,
+        }
+        ch.basic_publish(
+            exchange=EXCHANGE, routing_key=ROUTING_KEY,
+            body=json.dumps(payload),
+            properties=pika.BasicProperties(content_type="application/json", delivery_mode=2),
+        )
+        conn.close()
+        print(f"[event] publicado {ROUTING_KEY} con {len(payload['ranking'])} equipos")
+    except Exception as e:
+        print(f"[event] error publicando: {e}")
 
 def generate_ranking():
     # 🔹 Obtener ranking desde el servicio bd
@@ -177,6 +218,7 @@ def generate_ranking():
     time.sleep(2)  # Allow page to fully load
     driver.save_screenshot("ranking.jpg")
     driver.quit()
+    publish_ranking_event(rows, cantidadProblemas)
 
 @app.route('/generate', methods=['POST'])
 def generate():

@@ -8,8 +8,9 @@ import time
 app = Flask(__name__)
 
 # Service URLs
-GLOBOS_SERVICE_URL = "http://generarglobos:5000"
-TABLA_SERVICE_URL = "http://generartabla:5002"
+GLOBOS_SERVICE_URL = os.environ.get("GLOBOS_SERVICE_URL", "http://generarglobos:5000")
+TABLA_SERVICE_URL = os.environ.get("TABLA_SERVICE_URL", "http://generartabla:5002")
+COACH_SERVICE_URL = os.environ.get("COACH_SERVICE_URL", "http://coach-service:5003")
 
 @app.route('/generate-table', methods=['POST'])
 def generate_table():
@@ -74,6 +75,22 @@ def get_table_image():
             "status": "error", 
             "message": f"Failed to fetch table image: {str(e)}"
         }), 500
+
+@app.route('/coaches', methods=['POST'])
+def proxy_create_coach():
+    from flask import request
+    r = requests.post(f"{COACH_SERVICE_URL}/coaches", json=request.get_json(), timeout=10)
+    return (r.content, r.status_code, {'Content-Type': 'application/json'})
+
+@app.route('/coaches', methods=['GET'])
+def proxy_list_coaches():
+    r = requests.get(f"{COACH_SERVICE_URL}/coaches", timeout=10)
+    return (r.content, r.status_code, {'Content-Type': 'application/json'})
+
+@app.route('/teams', methods=['GET'])
+def proxy_list_teams():
+    r = requests.get(f"{COACH_SERVICE_URL}/teams", timeout=10)
+    return (r.content, r.status_code, {'Content-Type': 'application/json'})
 
 @app.route('/health', methods=['GET'])
 def health():

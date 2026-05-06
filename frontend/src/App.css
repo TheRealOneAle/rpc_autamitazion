@@ -35,3 +35,32 @@ button:disabled {
   border: 1px solid #ddd;
   border-radius: 5px;
 }
+
+.navbar { display:flex; gap:20px; padding:14px 24px; background:#1f2937; color:#fff; }
+.navbar a { color:#fff; text-decoration:none; font-weight:500; }
+.navbar a:hover { color:#fcd34d; }
+
+.register-container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+.register-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+@media (max-width: 800px) { .register-grid { grid-template-columns: 1fr; } }
+
+.panel h2 { margin: 0 0 6px; }
+.panel .muted { color:#666; margin: 0 0 4px; }
+.panel .hint { color:#999; font-size: 12px; margin-bottom: 16px; }
+.lbl { display:block; font-weight:600; margin-top: 12px; margin-bottom: 4px; }
+.form-input { width:100%; padding:10px 12px; border:1px solid #d1d5db; border-radius:6px; box-sizing:border-box; }
+.form-input:focus { outline:none; border-color:#3b82f6; }
+
+.btn-primary { display:block; width:100%; max-width:1200px; margin: 24px auto 40px; padding: 14px;
+  background:#16a34a; color:white; border:none; border-radius:6px; font-size:16px; cursor:pointer; }
+.btn-primary:disabled { background:#9ca3af; }
+.msg-ok { color:#15803d; text-align:center; }
+.msg-err { color:#b91c1c; text-align:center; }
+
+.team-select .team-list {
+  max-height: 320px; overflow-y:auto; border:1px solid #e5e7eb;
+  border-radius:6px; padding:8px; margin-top:8px; background:#fafafa;
+}
+.team-item { display:flex; gap:8px; padding:6px 8px; cursor:pointer; border-radius:4px; }
+.team-item:hover { background:#f3f4f6; }
+.team-item.checked { background:#dcfce7; }

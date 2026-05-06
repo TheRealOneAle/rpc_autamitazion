@@ -201,3 +201,7 @@ postgres/
 # System files
 .DS_Store
 Thumbs.db
+
+
+stitch_registro_de_entrenadores/
+docs/

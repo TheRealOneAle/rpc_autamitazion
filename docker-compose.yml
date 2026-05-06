@@ -48,9 +48,14 @@ services:
       - ./generartabla:/app
     environment:
       - BD_SERVICE_URL=http://bd:3001
+      - RABBIT_HOST=rabbitmq
+      - RABBIT_USER=rpc
+      - RABBIT_PASS=rpc1234
+      - COACH_SERVICE_URL=http://coach-service:5003
     depends_on:
       - bd
       - postgres
+      - rabbitmq
     restart: unless-stopped
 
   api-gateway:
@@ -62,9 +67,11 @@ services:
     environment:
       - GLOBOS_SERVICE_URL=http://generarglobos:5000
       - TABLA_SERVICE_URL=http://generartabla:5002
+      - COACH_SERVICE_URL=http://coach-service:5003
     depends_on:
       - generarglobos
       - generartabla
+      - coach-service
     restart: unless-stopped
 
   frontend:
@@ -74,6 +81,65 @@ services:
     depends_on:
       - api-gateway
     restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=rpc
+      - RABBITMQ_DEFAULT_PASS=rpc1234
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  coach-postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=coachdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234
+    volumes:
+      - coach-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  coach-service:
+    build: ./coach-service
+    ports:
+      - "5003:5003"
+    environment:
+      - COACH_DB_URL=postgresql://postgres:1234@coach-postgres:5432/coachdb
+      - BD_SERVICE_URL=http://bd:3001
+    depends_on:
+      - coach-postgres
+      - bd
+    restart: unless-stopped
+
+  notificacion-ranking-service:
+    build: ./notificacion-ranking-service
+    environment:
+      - RABBIT_HOST=rabbitmq
+      - RABBIT_USER=rpc
+      - RABBIT_PASS=rpc1234
+      - COACH_SERVICE_URL=http://coach-service:5003
+      - TABLA_SERVICE_URL=http://generartabla:5002
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - FROM_ADDR=${FROM_ADDR:-}
+    depends_on:
+      - rabbitmq
+      - coach-service
+      - generartabla
+    restart: unless-stopped
+
+volumes:
+  coach-pgdata:
 
 networks:
   default:
