@@ -28,17 +28,13 @@ def generate_table():
                         "message": f"Failed to generate globos: {generate_response.text}"
                     }), 500
         
-        # Step 2: Check if tabla is generated, if not, generate it
-        # We'll check by trying to fetch the image
-        tabla_check_response = requests.get(f"{TABLA_SERVICE_URL}/ranking.jpg", timeout=10)
-        if tabla_check_response.status_code != 200:
-            # Generate tabla
-            generate_response = requests.post(f"{TABLA_SERVICE_URL}/generate", timeout=30)
-            if generate_response.status_code != 200:
-                return jsonify({
-                    "status": "error", 
-                    "message": f"Failed to generate tabla: {generate_response.text}"
-                }), 500
+        # Step 2: Always regenerate tabla (so RabbitMQ event is always published)
+        generate_response = requests.post(f"{TABLA_SERVICE_URL}/generate", timeout=60)
+        if generate_response.status_code != 200:
+            return jsonify({
+                "status": "error",
+                "message": f"Failed to generate tabla: {generate_response.text}"
+            }), 500
         
         # Step 3: Return success
         return jsonify({

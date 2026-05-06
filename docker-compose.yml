@@ -6,6 +6,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
+      - ./bd/000_roles.sql:/docker-entrypoint-initdb.d/000_roles.sql
       - ./bd/backup/bkboca_2025_10:/docker-entrypoint-initdb.d/bkboca.sql
     environment:
       - POSTGRES_DB=bkboca

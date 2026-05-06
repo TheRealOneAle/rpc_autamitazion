@@ -1,11 +1,11 @@
 from flask import Flask, jsonify, send_file
 import os
-import subprocess
-import sys
 import requests
 import time
 import json
 import pika
+from selenium import webdriver
+from selenium.webdriver.firefox.options import Options
 
 app = Flask(__name__)
 
@@ -21,35 +21,44 @@ COACH_SERVICE_URL = os.environ.get("COACH_SERVICE_URL", "http://coach-service:50
 
 def publish_ranking_event(ranking_rows, cantidad_problemas):
     """Publica evento ranking.generado en RabbitMQ."""
-    try:
-        params = pika.ConnectionParameters(
-            host=RABBIT_HOST,
-            credentials=pika.PlainCredentials(RABBIT_USER, RABBIT_PASS),
-            heartbeat=30, blocked_connection_timeout=10,
-        )
-        conn = pika.BlockingConnection(params)
-        ch = conn.channel()
-        ch.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
-        ch.queue_declare(queue="ranking_queue", durable=True)
-        ch.queue_bind(exchange=EXCHANGE, queue="ranking_queue", routing_key=ROUTING_KEY)
+    import traceback
+    for attempt in range(3):
+        try:
+            params = pika.ConnectionParameters(
+                host=RABBIT_HOST,
+                credentials=pika.PlainCredentials(RABBIT_USER, RABBIT_PASS),
+                heartbeat=30, blocked_connection_timeout=10,
+                connection_attempts=3, retry_delay=2,
+            )
+            conn = pika.BlockingConnection(params)
+            ch = conn.channel()
+            ch.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
+            ch.queue_declare(queue="ranking_queue", durable=True)
+            ch.queue_bind(exchange=EXCHANGE, queue="ranking_queue", routing_key=ROUTING_KEY)
 
-        payload = {
-            "ranking": [
-                {"userfullname": r[0], "country": r[1], "usernumber": r[2],
-                 "problemas_resueltos": r[3], "points": float(r[4]) if r[4] is not None else 0}
-                for r in ranking_rows
-            ],
-            "cantidad_problemas": cantidad_problemas,
-        }
-        ch.basic_publish(
-            exchange=EXCHANGE, routing_key=ROUTING_KEY,
-            body=json.dumps(payload),
-            properties=pika.BasicProperties(content_type="application/json", delivery_mode=2),
-        )
-        conn.close()
-        print(f"[event] publicado {ROUTING_KEY} con {len(payload['ranking'])} equipos")
-    except Exception as e:
-        print(f"[event] error publicando: {e}")
+            payload = {
+                "ranking": [
+                    {"userfullname": r["userfullname"], "country": r["country"],
+                     "usernumber": r["usernumber"], "problemas_resueltos": r["problemas_resueltos"],
+                     "points": float(r["points"]) if r["points"] is not None else 0}
+                    for r in ranking_rows
+                ],
+                "cantidad_problemas": cantidad_problemas,
+            }
+            ch.basic_publish(
+                exchange=EXCHANGE, routing_key=ROUTING_KEY,
+                body=json.dumps(payload),
+                properties=pika.BasicProperties(content_type="application/json", delivery_mode=2),
+            )
+            conn.close()
+            print(f"[event] publicado {ROUTING_KEY} con {len(payload['ranking'])} equipos", flush=True)
+            return
+        except Exception as e:
+            print(f"[event] intento {attempt+1} fallido: {e}", flush=True)
+            traceback.print_exc()
+            if attempt < 2:
+                import time as _t; _t.sleep(2)
+    print("[event] no se pudo publicar el evento después de 3 intentos", flush=True)
 
 def generate_ranking():
     # 🔹 Obtener ranking desde el servicio bd
@@ -69,16 +78,16 @@ def generate_ranking():
 
     # 🔹 Obtener runs AC por equipo
     try:
-        teams = [row[2] for row in rows]
+        teams = [row["usernumber"] for row in rows]
         response = requests.get(f"{BD_SERVICE_URL}/api/teams/ac", timeout=10)
         if response.status_code != 200:
             raise Exception(f"Error obteniendo AC runs: {response.text}")
-        
+
         ac_data = response.json()
         if not ac_data.get("success"):
             raise Exception(f"Error en la respuesta AC: {ac_data.get('error')}")
-        
-        teamsAC = [(r[0], r[1]) for r in ac_data["rows"]]
+
+        teamsAC = [(r["usernumber"], r["runproblem"]) for r in ac_data["rows"]]
     except Exception as e:
         raise Exception(f"Error comunicación con servicio bd (AC): {e}")
 
@@ -112,18 +121,18 @@ def generate_ranking():
         problemasHtml = ""
         for j in range(cantidadProblemas):
             if problemasTeam[i][j] == 1:
-                problemasHtml += f'<td class="problemTeam"><img src="file:///home/alejo/Proyectos/microservicios/Proyecto_Boca/generarglobos/globosgenerados/{chr(65 + j)}.png" class="balloon"></td>'
+                problemasHtml += f'<td class="problemTeam"><img src="file:///app/globosgenerados/{chr(65 + j)}.png" class="balloon"></td>'
             else:
                 problemasHtml += '<td>-</td>'
         rows_html += f"""
     <tr {style}>
         <td class="numequipo">{i}</td>
         <td class="team-col">
-            <img src="file:///home/alejo/Proyectos/microservicios/Proyecto_Boca/generartabla/flags/{r[1].lower()}.svg" class="flag">
-            <span>{r[0]}</span>
+            <img src="file:///app/flags/{r['country'].lower()}.svg" class="flag">
+            <span>{r['userfullname']}</span>
         </td>
         {problemasHtml}
-        <td class="puntos">{r[3]} ({r[4]})</td>
+        <td class="puntos">{r['problemas_resueltos']} ({r['points']})</td>
     </tr>
     """
     html = f"""
@@ -211,7 +220,7 @@ def generate_ranking():
     
     # Generate image using Selenium
     options = Options()
-    options.headless = True
+    options.add_argument('--headless')
     driver = webdriver.Firefox(options=options)
     driver.set_window_size(1200, 800)  # Adjust size as needed
     driver.get("file:///" + os.path.abspath("ranking.html"))

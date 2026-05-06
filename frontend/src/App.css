@@ -57,10 +57,48 @@ button:disabled {
 .msg-ok { color:#15803d; text-align:center; }
 .msg-err { color:#b91c1c; text-align:center; }
 
-.team-select .team-list {
-  max-height: 320px; overflow-y:auto; border:1px solid #e5e7eb;
-  border-radius:6px; padding:8px; margin-top:8px; background:#fafafa;
+.ts-wrapper { position:relative; width:100%; }
+
+.ts-trigger {
+  width:100%; padding:10px 12px; border:1px solid #d1d5db; border-radius:6px;
+  background:white; cursor:pointer; display:flex; justify-content:space-between;
+  align-items:center; font-size:14px; text-align:left; box-sizing:border-box;
 }
-.team-item { display:flex; gap:8px; padding:6px 8px; cursor:pointer; border-radius:4px; }
-.team-item:hover { background:#f3f4f6; }
-.team-item.checked { background:#dcfce7; }
+.ts-trigger.open { border-color:#3b82f6; box-shadow:0 0 0 2px #bfdbfe; }
+.ts-trigger:hover { border-color:#9ca3af; }
+.ts-label { color:#374151; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ts-arrow { font-size:10px; color:#6b7280; flex-shrink:0; margin-left:8px; }
+
+.ts-dropdown {
+  position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:100;
+  background:white; border:1px solid #d1d5db; border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12); overflow:hidden;
+}
+
+.ts-search {
+  width:100%; padding:10px 12px; border:none; border-bottom:1px solid #e5e7eb;
+  font-size:14px; outline:none; box-sizing:border-box;
+}
+.ts-search:focus { border-bottom-color:#3b82f6; }
+
+.ts-list { max-height:260px; overflow-y:auto; }
+.ts-empty { padding:12px; color:#9ca3af; font-size:13px; text-align:center; margin:0; }
+
+.ts-item {
+  display:flex; align-items:center; gap:10px; padding:8px 12px;
+  cursor:pointer; font-size:14px; transition:background .1s;
+}
+.ts-item:hover { background:#f9fafb; }
+.ts-item.checked { background:#f0fdf4; }
+.ts-item input[type=checkbox] { accent-color:#16a34a; width:15px; height:15px; flex-shrink:0; }
+.ts-country { color:#9ca3af; font-size:12px; }
+
+.ts-footer {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:8px 12px; border-top:1px solid #e5e7eb; font-size:13px; color:#6b7280;
+}
+.ts-clear {
+  background:none; border:none; color:#ef4444; cursor:pointer;
+  font-size:13px; padding:0; font-weight:500;
+}
+.ts-clear:hover { color:#b91c1c; }
