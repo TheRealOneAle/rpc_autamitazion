@@ -1,25 +1,27 @@
-import psycopg2
+import requests
+import os
 from PIL import Image, ImageDraw, ImageChops
 
-# 🔹 Conexión
-conn = psycopg2.connect(
-    host="localhost",
-    database="bkboca",
-    user="postgres",
-    password="1234"
-)
+# 🔹 URL del servicio bd
+BD_SERVICE_URL = os.environ.get("BD_SERVICE_URL", "http://bd:3001")
 
-cur = conn.cursor()
-
-problemCol = """ select problemnumber, problemcolor from problemtable 
-where problemnumber != 0; """
-
-cur.execute(problemCol)
-
-colores = cur.fetchall()
-
-cur.close()
-conn.close()
+# 🔹 Obtener problemas y colores desde el servicio bd
+try:
+    response = requests.get(f"{BD_SERVICE_URL}/api/problems", timeout=10)
+    if response.status_code != 200:
+        print(f"Error obteniendo problemas: {response.text}")
+        exit(1)
+    
+    data = response.json()
+    if not data.get("success"):
+        print(f"Error en la respuesta: {data.get('error')}")
+        exit(1)
+    
+    colores = [(row["problemnumber"], row["problemcolor"]) for row in data["rows"]]
+    print(f"Obtenidos {len(colores)} problemas desde el servicio bd")
+except Exception as e:
+    print(f"Error de conexión al servicio bd: {e}")
+    exit(1)
 
 
 def generar_globo(nombre_globo, color_hex):

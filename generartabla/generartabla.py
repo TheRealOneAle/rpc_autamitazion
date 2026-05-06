@@ -1,6 +1,8 @@
 import psycopg2
-import imgkit
-from html2image import Html2Image
+from selenium import webdriver
+from selenium.webdriver.firefox.options import Options
+import time
+import os
 
 # 🔹 Conexión
 conn = psycopg2.connect(
@@ -204,8 +206,13 @@ tr:nth-child(even) {{
 with open("ranking.html", "w", encoding="utf-8") as f:
     f.write(html)
     
-#imgkit.from_file('ranking.html', 'ranking.jpg')
-
-hti = Html2Image()
-hti.screenshot('ranking.html', save_as='out.png')
+# Generate image using Selenium
+options = Options()
+options.headless = True
+driver = webdriver.Firefox(options=options)
+driver.set_window_size(1200, 800)  # Adjust size as needed
+driver.get("file:///" + os.path.abspath("ranking.html"))
+time.sleep(2)  # Allow page to fully load
+driver.save_screenshot("ranking.jpg")
+driver.quit()
 

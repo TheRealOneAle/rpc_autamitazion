@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: mi_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: bocauser
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: bkboca
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./backup:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./bd/backup/bkboca_2025_10:/docker-entrypoint-initdb.d/bkboca.sql
+    environment:
+      - POSTGRES_DB=bkboca
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234
+    restart: unless-stopped
+
+  bd:
+    build: ./bd
+    ports:
+      - "3001:3001"
+    environment:
+      - DB_HOST=postgres
+      - DB_NAME=bkboca
+      - DB_USER=postgres
+      - DB_PASS=1234
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  generarglobos:
+    build: ./generarglobos
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./generarglobos:/app
+    environment:
+      - BD_SERVICE_URL=http://bd:3001
+    depends_on:
+      - bd
+      - postgres
+    restart: unless-stopped
+
+  generartabla:
+    build: ./generartabla
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./generartabla:/app
+    environment:
+      - BD_SERVICE_URL=http://bd:3001
+    depends_on:
+      - bd
+      - postgres
+    restart: unless-stopped
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api-gateway:/app
+    environment:
+      - GLOBOS_SERVICE_URL=http://generarglobos:5000
+      - TABLA_SERVICE_URL=http://generartabla:5002
+    depends_on:
+      - generarglobos
+      - generartabla
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+networks:
+  default:
