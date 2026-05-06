@@ -62,7 +62,7 @@ bd/backup/*.dump
 *.rar
 
 # Generated files
-globosgenerados/
+globosgenerados/*
 ranking.html
 ranking.jpg
 *.html
