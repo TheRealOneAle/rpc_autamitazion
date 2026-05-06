@@ -31,7 +31,7 @@ EMAIL_TEMPLATE = Template("""
 <p>Hola <strong>{{coach.nombre}} {{coach.apellido}}</strong>,</p>
 <p>Se generó un nuevo ranking de la competencia. Adjuntamos la tabla general como imagen.</p>
 
-<h3>Tus equipos en el ranking</h3>
+<h3>Tus equipos</h3>
 {% if mis_equipos %}
 <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
 <tr style="background:#CF1F4A;color:white">
@@ -43,7 +43,7 @@ EMAIL_TEMPLATE = Template("""
 {% endfor %}
 </table>
 {% else %}
-<p><em>Tus equipos no aparecen en el top de este ranking.</em></p>
+<p><em>No tienes equipos registrados.</em></p>
 {% endif %}
 
 <h3>Ranking general (top 10)</h3>
@@ -76,10 +76,26 @@ def fetch_ranking_image():
 
 def filtrar_por_coach(ranking, coach):
     team_ids = {t["usernumber"] for t in coach.get("teams", [])}
+    ranking_map = {row["usernumber"]: (i, row) for i, row in enumerate(ranking, start=1)}
     out = []
-    for i, row in enumerate(ranking, start=1):
-        if row["usernumber"] in team_ids:
-            out.append({**row, "pos": i})
+    found_ids = set()
+    for team_id in team_ids:
+        if team_id in ranking_map:
+            pos, row = ranking_map[team_id]
+            out.append({**row, "pos": pos})
+            found_ids.add(team_id)
+    # Equipos del coach que no aparecen en el ranking (sin submissions en BOCA)
+    for t in coach.get("teams", []):
+        if t["usernumber"] not in found_ids:
+            out.append({
+                "usernumber": t["usernumber"],
+                "userfullname": t["fullname"],
+                "country": "-",
+                "problemas_resueltos": 0,
+                "points": 0,
+                "pos": "-",
+            })
+    out.sort(key=lambda r: r["pos"] if r["pos"] != "-" else 9999)
     return out
 
 def enviar_email(coach, ranking, mis_equipos, imagen):

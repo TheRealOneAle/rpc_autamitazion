@@ -170,6 +170,64 @@ app.get('/api/ranking', async (req, res) => {
   }
 });
 
+// Endpoint para obtener ranking completo de todos los equipos (sin límite)
+app.get('/api/ranking/full', async (req, res) => {
+  try {
+    const client = await getClient();
+    const result = await client.query(`
+      WITH ac AS (
+          SELECT
+              usernumber,
+              runproblem,
+              MIN(rundate) AS ac_time,
+              MIN(rundatediff) AS rundatediff
+          FROM runtable
+          WHERE runanswer = 1
+          GROUP BY usernumber, runproblem
+      ),
+      fallos AS (
+          SELECT
+              ac.usernumber,
+              ac.runproblem,
+              ac.ac_time,
+              ac.rundatediff,
+              COUNT(*) FILTER (
+                  WHERE r.runanswer > 1
+                    AND r.rundate < ac.ac_time
+              ) AS intentos_fallidos
+          FROM ac
+          JOIN runtable r
+              ON r.usernumber = ac.usernumber
+             AND r.runproblem = ac.runproblem
+          GROUP BY ac.usernumber, ac.runproblem, ac.ac_time, ac.rundatediff
+      ),
+      scores AS (
+          SELECT
+              usernumber,
+              COUNT(*) AS problemas_resueltos,
+              SUM(rundatediff/60 + (intentos_fallidos * 20)) AS points
+          FROM fallos
+          GROUP BY usernumber
+      )
+      SELECT
+          b.userfullname,
+          b.country,
+          b.usernumber,
+          COALESCE(s.problemas_resueltos, 0) AS problemas_resueltos,
+          COALESCE(s.points, 0) AS points
+      FROM usertable b
+      LEFT JOIN scores s ON s.usernumber = b.usernumber
+      WHERE b.usertype = 'team'
+      ORDER BY COALESCE(s.problemas_resueltos, 0) DESC, COALESCE(s.points, 0) ASC;
+    `);
+    await client.end();
+    res.json({ success: true, rows: result.rows });
+  } catch (error) {
+    console.error('Error obteniendo ranking completo:', error.message);
+    res.status(500).json({ success: false, error: `Error: ${error.message}` });
+  }
+});
+
 // Endpoint para obtener total de problemas
 app.get('/api/problems/count', async (req, res) => {
   try {

@@ -217,7 +217,7 @@ def generate_ranking():
 
     with open("ranking.html", "w", encoding="utf-8") as f:
         f.write(html)
-    
+
     # Generate image using Selenium
     options = Options()
     options.add_argument('--headless')
@@ -227,7 +227,19 @@ def generate_ranking():
     time.sleep(2)  # Allow page to fully load
     driver.save_screenshot("ranking.jpg")
     driver.quit()
-    publish_ranking_event(rows, cantidadProblemas)
+
+    # Para el evento usamos el ranking completo (todos los equipos, sin LIMIT 10)
+    try:
+        resp_full = requests.get(f"{BD_SERVICE_URL}/api/ranking/full", timeout=10)
+        if resp_full.status_code == 200 and resp_full.json().get("success"):
+            all_rows = resp_full.json()["rows"]
+        else:
+            all_rows = rows
+    except Exception as e:
+        print(f"[warn] no se pudo obtener ranking completo, usando top-10: {e}", flush=True)
+        all_rows = rows
+
+    publish_ranking_event(all_rows, cantidadProblemas)
 
 @app.route('/generate', methods=['POST'])
 def generate():
