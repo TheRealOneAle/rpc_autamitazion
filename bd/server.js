@@ -76,6 +76,21 @@ app.post('/api/query', async (req, res) => {
     }
 });
 
+// Endpoint para obtener lista de equipos (usado por coach-service)
+app.get('/api/teams', async (req, res) => {
+  try {
+    const client = await getClient();
+    const result = await client.query(
+      "SELECT usernumber, userfullname, country FROM usertable WHERE usertype='team' ORDER BY userfullname;"
+    );
+    await client.end();
+    res.json({ success: true, rows: result.rows });
+  } catch (error) {
+    console.error('Error obteniendo equipos:', error.message);
+    res.status(500).json({ success: false, error: `Error: ${error.message}` });
+  }
+});
+
 // Endpoint para obtener problemas y colores (usado por generarglobos)
 app.get('/api/problems', async (req, res) => {
   try {
