@@ -6,6 +6,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
+      - boca-pgdata:/var/lib/postgresql/data
       - ./bd/000_roles.sql:/docker-entrypoint-initdb.d/000_roles.sql
       - ./bd/backup/bkboca_2025_10:/docker-entrypoint-initdb.d/bkboca.sql
     environment:
@@ -34,6 +35,7 @@ services:
       - "5000:5000"
     volumes:
       - ./generarglobos:/app
+      - globos-data:/app/globosgenerados
     environment:
       - BD_SERVICE_URL=http://bd:3001
     depends_on:
@@ -47,6 +49,7 @@ services:
       - "5002:5002"
     volumes:
       - ./generartabla:/app
+      - globos-data:/app/globosgenerados
     environment:
       - BD_SERVICE_URL=http://bd:3001
       - RABBIT_HOST=rabbitmq
@@ -141,6 +144,8 @@ services:
 
 volumes:
   coach-pgdata:
+  boca-pgdata:
+  globos-data:
 
 networks:
   default:

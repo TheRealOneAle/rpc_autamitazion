@@ -22,10 +22,7 @@ def health(): return {"status": "ok"}
 @app.get("/teams")
 def list_teams():
     """Lista equipos disponibles desde la BD BOCA (vía bd-service)."""
-    r = requests.post(f"{BD_URL}/api/query", json={
-        "host": "postgres", "port": 5432, "user": "postgres", "password": "1234",
-        "query": "SELECT usernumber, userfullname, country FROM usertable WHERE usertype='team' ORDER BY userfullname;"
-    }, timeout=10)
+    r = requests.get(f"{BD_URL}/api/teams", timeout=10)
     r.raise_for_status()
     return r.json().get("rows", [])
 

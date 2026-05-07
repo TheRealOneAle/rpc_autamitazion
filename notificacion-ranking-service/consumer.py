@@ -29,10 +29,12 @@ EMAIL_TEMPLATE = Template("""
 <html><body style="font-family:Arial,sans-serif">
 <h2>Ranking RPC — Actualización</h2>
 <p>Hola <strong>{{coach.nombre}} {{coach.apellido}}</strong>,</p>
-<p>Se generó un nuevo ranking de la competencia. Adjuntamos la tabla general como imagen.</p>
+<p>Se generó un nuevo ranking de la competencia.</p>
 
-<h3>Tus equipos</h3>
-{% if mis_equipos %}
+<h3>Ranking de tus equipos</h3>
+{% if imagen_coach %}
+<img src="cid:ranking_coach" style="max-width:100%;border-radius:8px;margin-bottom:16px">
+{% elif mis_equipos %}
 <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">
 <tr style="background:#CF1F4A;color:white">
   <th>Pos. global</th><th>Equipo</th><th>País</th><th>Resueltos</th><th>Puntos</th>
@@ -60,10 +62,12 @@ EMAIL_TEMPLATE = Template("""
 </body></html>
 """)
 
+
 def fetch_coaches():
     r = requests.get(f"{COACH_SERVICE_URL}/coaches", timeout=10)
     r.raise_for_status()
     return r.json()
+
 
 def fetch_ranking_image():
     try:
@@ -71,8 +75,27 @@ def fetch_ranking_image():
         if r.status_code == 200:
             return r.content
     except Exception as e:
-        log.warning(f"no se pudo obtener imagen: {e}")
+        log.warning(f"no se pudo obtener imagen general: {e}")
     return None
+
+
+def fetch_coach_ranking_image(coach):
+    try:
+        team_numbers = [t["usernumber"] for t in coach.get("teams", [])]
+        if not team_numbers:
+            return None
+        body = {
+            "teams": team_numbers,
+            "nombre_coach": f"{coach['nombre']} {coach['apellido']}",
+        }
+        r = requests.post(f"{TABLA_SERVICE_URL}/ranking-coach.jpg", json=body, timeout=60)
+        if r.status_code == 200:
+            return r.content
+        log.warning(f"coach image status {r.status_code} para coach {coach.get('id')}: {r.text[:200]}")
+    except Exception as e:
+        log.warning(f"no se pudo obtener imagen coach {coach.get('id')}: {e}")
+    return None
+
 
 def filtrar_por_coach(ranking, coach):
     team_ids = {t["usernumber"] for t in coach.get("teams", [])}
@@ -84,7 +107,6 @@ def filtrar_por_coach(ranking, coach):
             pos, row = ranking_map[team_id]
             out.append({**row, "pos": pos})
             found_ids.add(team_id)
-    # Equipos del coach que no aparecen en el ranking (sin submissions en BOCA)
     for t in coach.get("teams", []):
         if t["usernumber"] not in found_ids:
             out.append({
@@ -98,20 +120,35 @@ def filtrar_por_coach(ranking, coach):
     out.sort(key=lambda r: r["pos"] if r["pos"] != "-" else 9999)
     return out
 
-def enviar_email(coach, ranking, mis_equipos, imagen):
+
+def enviar_email(coach, ranking, mis_equipos, imagen, imagen_coach=None):
     if not SMTP_USER:
-        log.info(f"[mock] email a {coach['email']} ({len(mis_equipos)} equipos suyos)")
+        log.info(f"[mock] email a {coach['email']} ({len(mis_equipos)} equipos suyos, imagen_coach={'sí' if imagen_coach else 'no'})")
         return
     msg = MIMEMultipart("related")
     msg["Subject"] = "Ranking RPC actualizado"
     msg["From"] = FROM_ADDR
     msg["To"] = coach["email"]
-    html = EMAIL_TEMPLATE.render(coach=coach, ranking=ranking, mis_equipos=mis_equipos)
+
+    html = EMAIL_TEMPLATE.render(
+        coach=coach,
+        ranking=ranking,
+        mis_equipos=mis_equipos,
+        imagen_coach=imagen_coach is not None,
+    )
     msg.attach(MIMEText(html, "html"))
+
+    if imagen_coach:
+        img = MIMEImage(imagen_coach, _subtype="jpeg")
+        img.add_header("Content-ID", "<ranking_coach>")
+        img.add_header("Content-Disposition", "inline", filename="ranking_coach.jpg")
+        msg.attach(img)
+
     if imagen:
         img = MIMEImage(imagen, _subtype="jpeg")
-        img.add_header("Content-Disposition", "attachment", filename="ranking.jpg")
+        img.add_header("Content-Disposition", "attachment", filename="ranking_general.jpg")
         msg.attach(img)
+
     ctx = ssl.create_default_context()
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
         s.starttls(context=ctx)
@@ -119,8 +156,8 @@ def enviar_email(coach, ranking, mis_equipos, imagen):
         s.send_message(msg)
     log.info(f"email enviado a {coach['email']}")
 
+
 def publish_coach_events(ch, ranking, coaches):
-    """RF3: publica evento por coach con su ranking filtrado."""
     for coach in coaches:
         mis = filtrar_por_coach(ranking, coach)
         body = {"coach_id": coach["id"], "email": coach["email"],
@@ -132,6 +169,7 @@ def publish_coach_events(ch, ranking, coaches):
         )
     log.info(f"publicados {len(coaches)} eventos {ROUTING_COACH}")
 
+
 def on_ranking_generado(ch, method, props, body):
     try:
         data = json.loads(body)
@@ -140,21 +178,20 @@ def on_ranking_generado(ch, method, props, body):
         imagen = fetch_ranking_image()
         log.info(f"ranking.generado recibido: {len(ranking)} equipos, {len(coaches)} coaches")
 
-        # RF3: emite evento por coach
         publish_coach_events(ch, ranking, coaches)
 
-        # RF2: envía emails
         for coach in coaches:
             mis = filtrar_por_coach(ranking, coach)
-            enviar_email(coach, ranking, mis, imagen)
+            imagen_coach = fetch_coach_ranking_image(coach)
+            enviar_email(coach, ranking, mis, imagen, imagen_coach)
 
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except Exception as e:
         log.exception(f"error procesando ranking.generado: {e}")
         ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
+
 def on_coach_event(ch, method, props, body):
-    """Consumer de la cola por-coach (RF3)."""
     try:
         data = json.loads(body)
         log.info(f"ranking.coach.generado coach={data.get('coach_id')} equipos={len(data.get('mis_equipos', []))}")
@@ -162,6 +199,7 @@ def on_coach_event(ch, method, props, body):
     except Exception as e:
         log.exception(f"error en coach event: {e}")
         ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+
 
 def setup_channel(ch):
     ch.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
@@ -172,6 +210,7 @@ def setup_channel(ch):
     ch.basic_qos(prefetch_count=1)
     ch.basic_consume(queue=QUEUE_GENERAL, on_message_callback=on_ranking_generado)
     ch.basic_consume(queue=QUEUE_COACH, on_message_callback=on_coach_event)
+
 
 def main():
     while True:
@@ -195,6 +234,7 @@ def main():
         except Exception as e:
             log.exception(f"error inesperado: {e}")
             time.sleep(5)
+
 
 if __name__ == "__main__":
     main()
