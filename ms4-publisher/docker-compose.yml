@@ -1,0 +1,36 @@
+version: '3.8'
+services:
+  ms4-publisher:
+    build: .
+    ports:
+      - "8003:8000"
+    depends_on:
+      - db
+      - rabbitmq
+    env_file: .env
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ms4_publisher
+      POSTGRES_USER: rpc_user
+      POSTGRES_PASSWORD: rpc_pass
+    volumes:
+      - ms4-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: rpc
+      RABBITMQ_DEFAULT_PASS: rpc1234
+    restart: unless-stopped
+
+volumes:
+  ms4-pgdata:

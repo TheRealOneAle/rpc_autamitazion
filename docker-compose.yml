@@ -142,10 +142,52 @@ services:
       - generartabla
     restart: unless-stopped
 
+  ms4-postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=ms4_publisher
+      - POSTGRES_USER=rpc_user
+      - POSTGRES_PASSWORD=rpc_pass
+    volumes:
+      - ms4-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  ms4-publisher:
+    build: ./ms4-publisher
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./ms4-publisher:/app
+    environment:
+      - POSTGRES_DB=ms4_publisher
+      - POSTGRES_USER=rpc_user
+      - POSTGRES_PASSWORD=rpc_pass
+      - POSTGRES_HOST=ms4-postgres
+      - POSTGRES_PORT=5432
+      - MS1_URL=http://bd:3001
+      - MS2_URL=http://generartabla:5002
+      - RABBIT_HOST=rabbitmq
+      - RABBIT_USER=rpc
+      - RABBIT_PASS=rpc1234
+      - SECRET_KEY=${MS4_SECRET_KEY:-ms4-dev-secret-key}
+      - DEBUG=True
+      - ALLOWED_HOSTS=*
+    command: >
+      sh -c "python manage.py makemigrations publisher --noinput &&
+             python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    depends_on:
+      - ms4-postgres
+      - rabbitmq
+      - bd
+      - generartabla
+    restart: unless-stopped
+
 volumes:
   coach-pgdata:
   boca-pgdata:
   globos-data:
+  ms4-pgdata:
 
 networks:
   default:
