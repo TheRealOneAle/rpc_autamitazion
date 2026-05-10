@@ -53,7 +53,14 @@ def orchestrate_publication():
     try:
         r1 = _fetch_with_retry("get", f"{ms1_url}/api/ranking")
         raw = r1.json()
-        competition_data = {"teams": raw.get("rows", raw.get("teams", []))}
+        r_stats = _fetch_with_retry("get", f"{ms1_url}/api/stats")
+        stats = r_stats.json()
+        competition_data = {
+            "teams": raw.get("rows", raw.get("teams", [])),
+            "total_teams":       stats.get("total_teams", 0),
+            "total_submissions": stats.get("total_submissions", 0),
+            "teams_with_solved": stats.get("teams_with_solved", 0),
+        }
 
         _fetch_with_retry("post", f"{ms2_url}/generate")
         r2 = _fetch_with_retry("get", f"{ms2_url}/ranking.jpg")

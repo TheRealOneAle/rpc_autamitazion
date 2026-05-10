@@ -32,6 +32,19 @@ def preview_image(request):
         return HttpResponse(status=503, reason=str(e))
 
 
+def competition_stats(request):
+    """Proxy de /api/stats de MS1 para que el frontend pueda consultarlo."""
+    from .orchestrator import _get_config
+    from django.http import JsonResponse
+    ms1_url = _get_config("ms1_url") or settings.MS1_URL
+    try:
+        r = http_requests.get(f"{ms1_url}/api/stats", timeout=10)
+        r.raise_for_status()
+        return JsonResponse(r.json())
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=503)
+
+
 class StatusView(APIView):
     def get(self, request):
         from .scheduler import get_scheduler

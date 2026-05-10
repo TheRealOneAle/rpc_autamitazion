@@ -243,6 +243,34 @@ app.get('/api/ranking/full', async (req, res) => {
   }
 });
 
+// Endpoint para estadísticas globales de la competencia
+app.get('/api/stats', async (req, res) => {
+  try {
+    const client = await getClient();
+
+    const totalTeams = await client.query(
+      "SELECT COUNT(*) AS total FROM usertable WHERE usertype='team';"
+    );
+    const totalSubmissions = await client.query(
+      'SELECT COUNT(*) AS total FROM runtable;'
+    );
+    const teamsWithSolved = await client.query(
+      "SELECT COUNT(DISTINCT usernumber) AS total FROM runtable WHERE runanswer = 1;"
+    );
+
+    await client.end();
+    res.json({
+      success: true,
+      total_teams:       parseInt(totalTeams.rows[0].total),
+      total_submissions: parseInt(totalSubmissions.rows[0].total),
+      teams_with_solved: parseInt(teamsWithSolved.rows[0].total),
+    });
+  } catch (error) {
+    console.error('Error obteniendo stats:', error.message);
+    res.status(500).json({ success: false, error: `Error: ${error.message}` });
+  }
+});
+
 // Endpoint para obtener total de problemas
 app.get('/api/problems/count', async (req, res) => {
   try {
