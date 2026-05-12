@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automatizador de Publicaciones</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1c1e21;
+      min-height: 100vh;
+      padding: 24px 16px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #1877f2;
+      margin-bottom: 4px;
+    }
+
+    .subtitle { font-size: 0.85rem; color: #65676b; margin-bottom: 24px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.12);
+      padding: 20px;
+    }
+
+    .card h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #65676b;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 16px;
+    }
+
+    /* STATUS */
+    .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: #ccc; }
+    .dot.on  { background: #42b72a; }
+    .dot.off { background: #e41c1c; }
+    .status-label { font-size: 0.9rem; }
+    .next-run { font-size: 0.8rem; color: #65676b; margin-top: 4px; }
+
+    /* PUBLISH BUTTON */
+    #btn-publish {
+      width: 100%; margin-top: 16px; padding: 12px;
+      background: #1877f2; color: #fff; border: none;
+      border-radius: 8px; font-size: 1rem; font-weight: 600;
+      cursor: pointer; transition: background .15s;
+    }
+    #btn-publish:hover:not(:disabled) { background: #1558b0; }
+    #btn-publish:disabled { background: #9cb8e9; cursor: not-allowed; }
+    #publish-msg { margin-top: 10px; font-size: 0.85rem; text-align: center; min-height: 20px; color: #42b72a; }
+    #publish-msg.err { color: #e41c1c; }
+
+    /* FACEBOOK PREVIEW */
+    .fb-card { border: 1px solid #ddd; border-radius: 10px; overflow: hidden; font-size: 0.9rem; }
+    .fb-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+    .fb-avatar {
+      width: 40px; height: 40px; border-radius: 50%; background: #1877f2;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 1.1rem; flex-shrink: 0;
+    }
+    .fb-name { font-weight: 600; font-size: 0.9rem; }
+    .fb-meta { font-size: 0.75rem; color: #65676b; }
+    .fb-body {
+      padding: 0 14px 14px; white-space: pre-wrap; line-height: 1.6;
+      color: #1c1e21; word-break: break-word;
+    }
+    .fb-img-placeholder {
+      background: linear-gradient(135deg, #e7f0fd 0%, #accbee 100%);
+      height: 180px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #1877f2; font-size: 0.85rem; gap: 8px; margin-bottom: 10px;
+    }
+    .fb-img-placeholder svg { opacity: .5; }
+    .fb-reactions {
+      border-top: 1px solid #eee; padding: 8px 14px;
+      font-size: 0.8rem; color: #65676b; display: flex; gap: 16px;
+    }
+
+    /* TOKEN FORM */
+    .token-form { display: flex; flex-direction: column; gap: 10px; }
+    .token-form label { font-size: 0.8rem; font-weight: 600; color: #444; }
+    .token-form input, .token-form textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px;
+      font-size: 0.85rem; font-family: monospace; resize: vertical;
+    }
+    .token-form input:focus, .token-form textarea:focus { outline: none; border-color: #1877f2; }
+    #btn-token {
+      padding: 9px; background: #42b72a; color: #fff; border: none;
+      border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    }
+    #btn-token:hover { background: #36a020; }
+    #token-msg { font-size: 0.8rem; text-align: center; min-height: 18px; color: #42b72a; }
+    #token-msg.err { color: #e41c1c; }
+    .token-help { font-size: 0.75rem; color: #65676b; line-height: 1.4; }
+    .token-help a { color: #1877f2; }
+
+    .preview-note { font-size: 0.75rem; color: #65676b; margin-top: 12px; text-align: center; }
+    .loading { color: #65676b; font-size: 0.85rem; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  </style>
+</head>
+<body>
+
+  <div style="max-width:900px;margin:0 auto 20px;">
+    <h1>Automatizador de Publicaciones</h1>
+    <p class="subtitle">Vista previa y control de publicaciones en Facebook</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- COLUMNA IZQUIERDA -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- STATUS -->
+      <div class="card">
+        <h2>Estado del servicio</h2>
+        <div class="status-row">
+          <span class="dot" id="dot-proceso"></span>
+          <span class="status-label" id="label-proceso">Cargando...</span>
+        </div>
+        <div class="status-row">
+          <span class="dot" id="dot-scheduler"></span>
+          <span class="status-label" id="label-scheduler">Cargando...</span>
+        </div>
+        <p class="next-run" id="next-run"></p>
+
+        <button id="btn-publish" disabled>Publicar ahora</button>
+        <p id="publish-msg"></p>
+      </div>
+
+      <!-- TOKEN -->
+      <div class="card">
+        <h2>Token de Facebook</h2>
+        <p class="token-help" style="margin-bottom:12px;">
+          Necesitas un <strong>Page Access Token</strong> con el permiso
+          <code>pages_manage_posts</code>. Obtenlo en el
+          <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a>:
+          selecciona tu app, luego tu pagina y genera el token.
+        </p>
+        <div class="token-form">
+          <div>
+            <label>Page ID</label>
+            <input type="text" id="inp-page-id" placeholder="123456789012345">
+          </div>
+          <div>
+            <label>Page Access Token</label>
+            <textarea id="inp-token" rows="3" placeholder="EAABsbCS..."></textarea>
+          </div>
+          <button id="btn-token">Guardar token</button>
+          <p id="token-msg"></p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- COLUMNA DERECHA: PREVIEW -->
+    <div class="card">
+      <h2>Vista previa del post</h2>
+
+      <div class="fb-card">
+        <div class="fb-header">
+          <div class="fb-avatar">R</div>
+          <div>
+            <div class="fb-name" id="fb-page-name">RPC Competencia</div>
+            <div class="fb-meta">Ahora · Publico</div>
+          </div>
+        </div>
+
+        <div class="fb-img-placeholder" id="img-placeholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1877f2" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+          <span>Cargando imagen del ranking...</span>
+        </div>
+        <img id="ranking-img" src="" alt="Ranking" style="display:none;width:100%;border-bottom:1px solid #eee;"
+             onerror="this.style.display='none';document.getElementById('img-placeholder').style.display='flex';"
+             onload="this.style.display='block';document.getElementById('img-placeholder').style.display='none';"
+        />
+
+        <div class="fb-body" id="fb-body">Cargando vista previa...</div>
+
+        <div class="fb-reactions">
+          <span>Me gusta</span>
+          <span>Comentar</span>
+          <span>Compartir</span>
+        </div>
+      </div>
+
+      <p class="preview-note" id="preview-note"></p>
+    </div>
+
+  </div>
+
+  <script>
+    const API = '';
+
+    function fmt(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function buildDescription(data, config) {
+      const competitionName  = config.competition_name  || 'Competencia RPC 2026';
+      const totalSubmissions = data.total_submissions   ?? '?';
+      const teamsWithSolved  = data.teams_with_solved   ?? '?';
+      const totalTeams       = data.total_teams         ?? '?';
+
+      return (
+        `Asi quedo la parte alta del tablero FINAL de la ${competitionName}. ` +
+        `Se realizaron en total ${totalSubmissions} envios, donde ${teamsWithSolved} equipos ` +
+        `(de ${totalTeams} en competencia) ` +
+        `#TodosSomosRPC #CreciendoTodosJuntos`
+      );
+    }
+
+    async function loadStatus() {
+      try {
+        const r = await fetch(`${API}/api/status/`);
+        const d = await r.json();
+
+        document.getElementById('dot-proceso').className   = 'dot ' + (d.proceso_activo ? 'on' : 'off');
+        document.getElementById('label-proceso').textContent = d.proceso_activo ? 'Proceso activo' : 'Proceso inactivo';
+        document.getElementById('dot-scheduler').className   = 'dot ' + (d.scheduler_running ? 'on' : 'off');
+        document.getElementById('label-scheduler').textContent = d.scheduler_running ? 'Scheduler corriendo' : 'Scheduler detenido';
+        document.getElementById('next-run').textContent = d.next_run ? `Proxima ejecucion: ${fmt(d.next_run)}` : '';
+        document.getElementById('btn-publish').disabled = false;
+        return d;
+      } catch(e) {
+        document.getElementById('label-proceso').textContent = 'Sin conexion con el servicio';
+      }
+    }
+
+    async function loadPreview() {
+      const configMap = {};
+      try {
+        const r = await fetch(`${API}/api/config/`);
+        const cfgs = await r.json();
+        cfgs.forEach(c => { configMap[c.key] = c.value; });
+        document.getElementById('fb-page-name').textContent = configMap.competition_name || 'RPC Competencia';
+      } catch(_) {}
+
+      const note = document.getElementById('preview-note');
+      try {
+        const r = await fetch(`${API}/api/competition-stats/`);
+        const stats = await r.json();
+        if (stats.error) throw new Error(stats.error);
+        note.textContent = 'Vista previa con datos actuales de la competencia.';
+        document.getElementById('fb-body').textContent = buildDescription(stats, configMap);
+      } catch(e) {
+        note.textContent = 'No se pudieron obtener datos de la BD. Mostrando ejemplo.';
+        document.getElementById('fb-body').textContent = buildDescription({
+          total_teams: 173, total_submissions: 1335, teams_with_solved: 153,
+        }, configMap);
+      }
+    }
+
+    document.getElementById('btn-publish').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-publish');
+      const msg = document.getElementById('publish-msg');
+      btn.disabled = true;
+      btn.textContent = 'Publicando...';
+      msg.className = '';
+      msg.textContent = '';
+      try {
+        const r = await fetch(`${API}/api/trigger/`, { method: 'POST' });
+        const d = await r.json();
+        if (r.ok) {
+          msg.textContent = d.detail || 'Ciclo iniciado en segundo plano';
+          setTimeout(() => { loadStatus(); loadPreview(); }, 3000);
+        } else {
+          msg.textContent = d.detail || 'Error al publicar';
+          msg.className = 'err';
+        }
+      } catch(e) {
+        msg.textContent = 'Error de conexion con el servicio';
+        msg.className = 'err';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Publicar ahora';
+      }
+    });
+
+    document.getElementById('btn-token').addEventListener('click', async () => {
+      const pageId = document.getElementById('inp-page-id').value.trim();
+      const token  = document.getElementById('inp-token').value.trim();
+      const msg    = document.getElementById('token-msg');
+      if (!pageId || !token) {
+        msg.textContent = 'Completa el Page ID y el token';
+        msg.className = 'err';
+        return;
+      }
+      msg.textContent = 'Guardando...';
+      msg.className = '';
+      try {
+        const r = await fetch(`${API}/api/token/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page_id: pageId, access_token: token }),
+        });
+        const d = await r.json();
+        if (r.ok) {
+          msg.textContent = 'Token guardado correctamente';
+          msg.className = '';
+          document.getElementById('inp-token').value = '';
+        } else {
+          msg.textContent = JSON.stringify(d);
+          msg.className = 'err';
+        }
+      } catch(e) {
+        msg.textContent = 'Error de conexion';
+        msg.className = 'err';
+      }
+    });
+
+    function loadRankingImage() {
+      const img = document.getElementById('ranking-img');
+      img.src = `${API}/api/preview-image/?t=${Date.now()}`;
+    }
+
+    async function init() {
+      loadStatus();
+      loadPreview();
+      loadRankingImage();
+    }
+
+    init();
+    setInterval(loadStatus, 10000);
+    setInterval(loadPreview, 30000);
+    setInterval(loadRankingImage, 30000);
+  </script>
+</body>
+</html>

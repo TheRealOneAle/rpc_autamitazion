@@ -65,7 +65,6 @@ bd/backup/*.dump
 globosgenerados/*
 ranking.html
 ranking.jpg
-*.html
 
 # OS files
 .DS_Store
