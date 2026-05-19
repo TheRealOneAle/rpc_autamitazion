@@ -12,6 +12,7 @@ from selenium.webdriver.firefox.options import Options
 app = Flask(__name__)
 
 BD_SERVICE_URL = os.environ.get("BD_SERVICE_URL", "http://bd:3001")
+GLOBOS_SERVICE_URL = os.environ.get('GLOBOS_SERVICE_URL', 'http://generarglobos:5000')
 
 RABBIT_HOST = os.environ.get("RABBIT_HOST", "rabbitmq")
 RABBIT_USER = os.environ.get("RABBIT_USER", "rpc")
@@ -37,16 +38,43 @@ tr:nth-child(even) { background-color: #f2f2f2; }
 """
 
 
+def _get_rabbit_params():
+    url = os.environ.get('CLOUDAMQP_URL')
+    if url:
+        return pika.URLParameters(url)
+    return pika.ConnectionParameters(
+        host=RABBIT_HOST,
+        credentials=pika.PlainCredentials(RABBIT_USER, RABBIT_PASS),
+        heartbeat=30, blocked_connection_timeout=10,
+        connection_attempts=3, retry_delay=2,
+    )
+
+
+def _ensure_globos(cantidadProblemas):
+    """Downloads balloon images from GLOBOS_SERVICE_URL to /tmp/globosgenerados/.
+    Falls back to /app/globosgenerados/ if HTTP fails."""
+    tmp_dir = '/tmp/globosgenerados'
+    os.makedirs(tmp_dir, exist_ok=True)
+    try:
+        for i in range(cantidadProblemas):
+            letter = chr(65 + i)
+            dest = os.path.join(tmp_dir, f'{letter}.png')
+            if not os.path.exists(dest):
+                r = requests.get(f"{GLOBOS_SERVICE_URL}/globo/{letter}.png", timeout=10)
+                r.raise_for_status()
+                with open(dest, 'wb') as f:
+                    f.write(r.content)
+        return tmp_dir
+    except Exception as e:
+        print(f"[warn] no se pudo descargar globos de {GLOBOS_SERVICE_URL}: {e}", flush=True)
+        return '/app/globosgenerados'
+
+
 def publish_ranking_event(ranking_rows, cantidad_problemas):
     import traceback
     for attempt in range(3):
         try:
-            params = pika.ConnectionParameters(
-                host=RABBIT_HOST,
-                credentials=pika.PlainCredentials(RABBIT_USER, RABBIT_PASS),
-                heartbeat=30, blocked_connection_timeout=10,
-                connection_attempts=3, retry_delay=2,
-            )
+            params = _get_rabbit_params()
             conn = pika.BlockingConnection(params)
             ch = conn.channel()
             ch.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
@@ -78,7 +106,7 @@ def publish_ranking_event(ranking_rows, cantidad_problemas):
     print("[event] no se pudo publicar el evento después de 3 intentos", flush=True)
 
 
-def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoamerica"):
+def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoamerica", globos_dir='/app/globosgenerados'):
     headers = "".join(f"<th>{chr(65 + i)}</th>" for i in range(cantidadProblemas))
     rows_html = ""
     for i, r in enumerate(rows):
@@ -98,7 +126,7 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
             if solved:
                 problemasHtml += (
                     f'<td class="problemTeam">'
-                    f'<img src="file:///app/globosgenerados/{chr(65 + j)}.png" class="balloon">'
+                    f'<img src="file://{globos_dir}/{chr(65 + j)}.png" class="balloon">'
                     f'</td>'
                 )
             else:
@@ -204,7 +232,8 @@ def generate_ranking():
             if 0 <= j < cantidadProblemas:
                 problemasTeam[i][j] = 1
 
-    html = _ranking_html(rows, cantidadProblemas, problemasTeam)
+    globos_dir = _ensure_globos(cantidadProblemas)
+    html = _ranking_html(rows, cantidadProblemas, problemasTeam, globos_dir=globos_dir)
     with open("ranking.html", "w", encoding="utf-8") as f:
         f.write(html)
     _screenshot_html(html, "ranking.jpg")
@@ -273,7 +302,8 @@ def get_coach_image():
                 if 0 <= j < cantidadProblemas:
                     problemasTeam[i][j] = 1
 
-        html = _ranking_html(rows, cantidadProblemas, problemasTeam, f"Equipos de {nombre_coach}")
+        globos_dir = _ensure_globos(cantidadProblemas)
+        html = _ranking_html(rows, cantidadProblemas, problemasTeam, f"Equipos de {nombre_coach}", globos_dir=globos_dir)
         img_bytes = _screenshot_html(html)
 
         return send_file(BytesIO(img_bytes), mimetype='image/jpeg')
@@ -295,4 +325,4 @@ def health():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5002)))

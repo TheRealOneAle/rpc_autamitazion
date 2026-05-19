@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_file
 import os
 import subprocess
 import sys
@@ -9,6 +9,14 @@ app = Flask(__name__)
 SCRIPT_PATH = os.path.join(os.path.dirname(__file__), 'generarglobos.py')
 # Directory where globos are stored
 GLOBOS_DIR = os.path.join(os.path.dirname(__file__), 'globosgenerados')
+
+@app.route('/globo/<letter>.png')
+def serve_globo(letter):
+    path = os.path.join(GLOBOS_DIR, f'{letter.upper()}.png')
+    if not os.path.exists(path):
+        return jsonify({"error": "not found"}), 404
+    return send_file(path, mimetype='image/png')
+
 
 @app.route('/generate', methods=['POST'])
 def generate_globos():
@@ -56,4 +64,4 @@ def status():
         return jsonify({"status": "complete"}), 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

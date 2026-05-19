@@ -1,0 +1,131 @@
+databases:
+  - name: boca-postgres
+    databaseName: bkboca
+    user: postgres
+    plan: free
+
+  - name: ms4-postgres
+    databaseName: ms4_publisher
+    user: rpc_user
+    plan: free
+
+services:
+  # ── bd (API de la base de datos BOCA) ────────────────────────────────────────
+  - type: web
+    name: bd
+    env: docker
+    dockerfilePath: ./bd/Dockerfile
+    dockerContext: ./bd
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: boca-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: boca-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: boca-postgres
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: boca-postgres
+          property: user
+      - key: DB_PASS
+        fromDatabase:
+          name: boca-postgres
+          property: password
+
+  # ── generarglobos ────────────────────────────────────────────────────────────
+  - type: web
+    name: generarglobos
+    env: docker
+    dockerfilePath: ./generarglobos/Dockerfile
+    dockerContext: ./generarglobos
+    envVars:
+      - key: BD_SERVICE_URL
+        fromService:
+          type: web
+          name: bd
+          property: url
+
+  # ── generartabla ─────────────────────────────────────────────────────────────
+  - type: web
+    name: generartabla
+    env: docker
+    dockerfilePath: ./generartabla/Dockerfile
+    dockerContext: ./generartabla
+    envVars:
+      - key: BD_SERVICE_URL
+        fromService:
+          type: web
+          name: bd
+          property: url
+      - key: GLOBOS_SERVICE_URL
+        fromService:
+          type: web
+          name: generarglobos
+          property: url
+      - key: CLOUDAMQP_URL
+        sync: false
+
+  # ── ms4-publisher (frontend principal + API Facebook) ────────────────────────
+  - type: web
+    name: ms4-publisher
+    env: docker
+    dockerfilePath: ./ms4-publisher/Dockerfile
+    dockerContext: ./ms4-publisher
+    envVars:
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: ms4-postgres
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: ms4-postgres
+          property: port
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: ms4-postgres
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: ms4-postgres
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: ms4-postgres
+          property: password
+      - key: MS1_URL
+        fromService:
+          type: web
+          name: bd
+          property: url
+      - key: MS2_URL
+        fromService:
+          type: web
+          name: generartabla
+          property: url
+      - key: CLOUDAMQP_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+
+  # ── frontend (dashboard del publicador) ──────────────────────────────────────
+  - type: web
+    name: frontend
+    env: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      - key: MS4_PUBLISHER_URL
+        fromService:
+          type: web
+          name: ms4-publisher
+          property: hostport

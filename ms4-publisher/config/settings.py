@@ -52,6 +52,7 @@ RABBIT_USER = os.environ.get('RABBIT_USER', 'rpc')
 RABBIT_PASS = os.environ.get('RABBIT_PASS', 'rpc1234')
 RABBIT_EXCHANGE = 'rpc.events'
 RABBIT_ROUTING_KEY = 'ranking.published'
+CLOUDAMQP_URL = os.environ.get('CLOUDAMQP_URL', '')
 
 # Service URLs
 MS1_URL = os.environ.get('MS1_URL', 'http://ms1-connector:8001')

@@ -102,3 +102,44 @@ button:disabled {
   font-size:13px; padding:0; font-weight:500;
 }
 .ts-clear:hover { color:#b91c1c; }
+
+/* Publisher dashboard */
+.pub-page { padding: 24px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; min-height: calc(100vh - 48px); }
+.pub-header { max-width: 900px; margin: 0 auto 20px; }
+.pub-title { font-size: 1.4rem; font-weight: 700; color: #1877f2; margin-bottom: 4px; }
+.pub-subtitle { font-size: 0.85rem; color: #65676b; }
+.pub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 900px; margin: 0 auto; }
+@media (max-width: 640px) { .pub-grid { grid-template-columns: 1fr; } }
+.pub-col { display: flex; flex-direction: column; gap: 20px; }
+.pub-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.12); padding: 20px; }
+.pub-preview-card { align-self: start; }
+.pub-card-title { font-size: 0.95rem; font-weight: 600; color: #65676b; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 16px; }
+.pub-status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.pub-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: #ccc; }
+.pub-dot.on { background: #42b72a; }
+.pub-dot.off { background: #e41c1c; }
+.pub-status-label { font-size: 0.9rem; }
+.pub-next-run { font-size: 0.8rem; color: #65676b; margin-top: 4px; }
+.pub-btn-publish { width: 100%; margin-top: 16px; padding: 12px; background: #1877f2; color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .15s; }
+.pub-btn-publish:hover:not(:disabled) { background: #1558b0; }
+.pub-btn-publish:disabled { background: #9cb8e9; cursor: not-allowed; }
+.pub-msg { margin-top: 10px; font-size: 0.85rem; text-align: center; min-height: 20px; color: #42b72a; }
+.pub-msg.err { color: #e41c1c; }
+.pub-token-help { font-size: 0.75rem; color: #65676b; line-height: 1.4; margin-bottom: 12px; }
+.pub-token-help a { color: #1877f2; }
+.pub-token-form { display: flex; flex-direction: column; gap: 10px; }
+.pub-token-label { display: block; font-size: 0.8rem; font-weight: 600; color: #444; margin-bottom: 4px; }
+.pub-token-input { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.85rem; font-family: monospace; resize: vertical; box-sizing: border-box; }
+.pub-token-input:focus { outline: none; border-color: #1877f2; }
+.pub-btn-token { padding: 9px; background: #42b72a; color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.pub-btn-token:hover { background: #36a020; }
+.pub-preview-note { font-size: 0.75rem; color: #65676b; margin-top: 12px; text-align: center; }
+.fb-card { border: 1px solid #ddd; border-radius: 10px; overflow: hidden; font-size: 0.9rem; }
+.fb-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.fb-avatar { width: 40px; height: 40px; border-radius: 50%; background: #1877f2; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; }
+.fb-name { font-weight: 600; font-size: 0.9rem; }
+.fb-meta { font-size: 0.75rem; color: #65676b; }
+.fb-body { padding: 0 14px 14px; white-space: pre-wrap; line-height: 1.6; color: #1c1e21; word-break: break-word; }
+.fb-img-placeholder { background: linear-gradient(135deg, #e7f0fd 0%, #accbee 100%); height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #1877f2; font-size: 0.85rem; gap: 8px; margin-bottom: 10px; }
+.fb-img-placeholder svg { opacity: .5; }
+.fb-reactions { border-top: 1px solid #eee; padding: 8px 14px; font-size: 0.8rem; color: #65676b; display: flex; gap: 16px; }

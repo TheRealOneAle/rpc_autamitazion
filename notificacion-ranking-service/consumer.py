@@ -17,6 +17,17 @@ ROUTING_GENERAL = "ranking.generado"
 ROUTING_COACH = "ranking.coach.generado"
 
 COACH_SERVICE_URL = os.environ.get("COACH_SERVICE_URL", "http://coach-service:5003")
+
+
+def _get_rabbit_params():
+    url = os.environ.get('CLOUDAMQP_URL')
+    if url:
+        return pika.URLParameters(url)
+    return pika.ConnectionParameters(
+        host=RABBIT_HOST,
+        credentials=pika.PlainCredentials(RABBIT_USER, RABBIT_PASS),
+        heartbeat=30, blocked_connection_timeout=10,
+    )
 TABLA_SERVICE_URL = os.environ.get("TABLA_SERVICE_URL", "http://generartabla:5002")
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
@@ -216,11 +227,7 @@ def main():
     while True:
         try:
             log.info(f"conectando a rabbitmq {RABBIT_HOST}...")
-            params = pika.ConnectionParameters(
-                host=RABBIT_HOST,
-                credentials=pika.PlainCredentials(RABBIT_USER, RABBIT_PASS),
-                heartbeat=30, blocked_connection_timeout=10,
-            )
+            params = _get_rabbit_params()
             conn = pika.BlockingConnection(params)
             ch = conn.channel()
             setup_channel(ch)

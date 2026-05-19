@@ -83,6 +83,22 @@ services:
     ports:
       - "8080:80"
     depends_on:
+      - ms4-publisher
+    restart: unless-stopped
+
+  generartabla-frontend:
+    build: ./generartabla/frontend
+    ports:
+      - "8081:80"
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+  coach-frontend:
+    build: ./coach-service/frontend
+    ports:
+      - "8082:80"
+    depends_on:
       - api-gateway
     restart: unless-stopped
 

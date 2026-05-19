@@ -9,12 +9,15 @@ log = logging.getLogger(__name__)
 def publish_ranking_event(competition_data: dict, post_id: str = None):
     """Publica evento ranking.published en RabbitMQ."""
     try:
-        params = pika.ConnectionParameters(
-            host=settings.RABBIT_HOST,
-            credentials=pika.PlainCredentials(settings.RABBIT_USER, settings.RABBIT_PASS),
-            connection_attempts=3,
-            retry_delay=2,
-        )
+        if settings.CLOUDAMQP_URL:
+            params = pika.URLParameters(settings.CLOUDAMQP_URL)
+        else:
+            params = pika.ConnectionParameters(
+                host=settings.RABBIT_HOST,
+                credentials=pika.PlainCredentials(settings.RABBIT_USER, settings.RABBIT_PASS),
+                connection_attempts=3,
+                retry_delay=2,
+            )
         conn = pika.BlockingConnection(params)
         ch = conn.channel()
         ch.exchange_declare(exchange=settings.RABBIT_EXCHANGE, exchange_type='topic', durable=True)

@@ -9,7 +9,7 @@ FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
 
-ENV MS4_PUBLISHER_URL=ms4-publisher:8000
+ENV API_GATEWAY_URL=api-gateway:8000
 
 EXPOSE 80
-CMD ["/bin/sh", "-c", "envsubst '${MS4_PUBLISHER_URL}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "envsubst '${API_GATEWAY_URL}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]

@@ -1,0 +1,38 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f4f6f7;
+}
+
+.container {
+  max-width: 800px;
+  margin: 50px auto;
+  padding: 20px;
+  text-align: center;
+}
+
+h1 { color: #CF1F4A; margin-bottom: 24px; }
+
+button {
+  padding: 15px 30px;
+  font-size: 18px;
+  cursor: pointer;
+  background-color: #CF1F4A;
+  color: white;
+  border: none;
+  border-radius: 5px;
+}
+
+button:hover:not(:disabled) { background-color: #a81840; }
+button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+.message { margin-top: 20px; font-size: 16px; }
+
+.table-container { margin-top: 30px; }
+.table-container img {
+  max-width: 100%;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
