@@ -1,14 +1,13 @@
 FROM python:3.12-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y \
-    firefox-esr \
-    wget \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz0b \
+    libgdk-pixbuf2.0-0 \
+    libffi8 \
+    shared-mime-info \
     && rm -rf /var/lib/apt/lists/*
-RUN GECKO_VER="0.37.0" && \
-    wget -q "https://github.com/mozilla/geckodriver/releases/download/v${GECKO_VER}/geckodriver-v${GECKO_VER}-linux64.tar.gz" -O /tmp/geckodriver.tar.gz && \
-    tar -xzf /tmp/geckodriver.tar.gz -C /usr/local/bin && \
-    rm /tmp/geckodriver.tar.gz && \
-    chmod +x /usr/local/bin/geckodriver
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .

@@ -3,11 +3,8 @@ import os
 import requests
 import time
 import json
-import tempfile
 import pika
 from io import BytesIO
-from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
 
 app = Flask(__name__)
 
@@ -167,39 +164,20 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
 
 
 def _screenshot_html(html_content, output_path=None):
-    """Renders HTML to JPEG via Selenium.
-    If output_path is given, saves there and returns None.
-    Otherwise saves to a temp file and returns the image bytes."""
-    with tempfile.NamedTemporaryFile(
-        mode='w', suffix='.html', delete=False, encoding='utf-8', dir='/tmp'
-    ) as f:
-        f.write(html_content)
-        tmp_html = f.name
+    """Renders HTML to JPEG via weasyprint (no browser needed)."""
+    from weasyprint import HTML
+    from PIL import Image
 
-    use_temp_output = output_path is None
-    if use_temp_output:
-        tmp_jpg = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False, dir='/tmp')
-        tmp_jpg.close()
-        output_path = tmp_jpg.name
+    png_bytes = HTML(string=html_content, base_url='/').write_png()
+    img = Image.open(BytesIO(png_bytes)).convert('RGB')
 
-    options = Options()
-    options.add_argument('--headless')
-    driver = webdriver.Firefox(options=options)
-    driver.set_window_size(1200, 800)
-    try:
-        driver.get(f"file://{tmp_html}")
-        time.sleep(2)
-        driver.save_screenshot(output_path)
-    finally:
-        driver.quit()
-        os.unlink(tmp_html)
-
-    if use_temp_output:
-        with open(output_path, 'rb') as f:
-            data = f.read()
-        os.unlink(output_path)
-        return data
-    return None
+    if output_path:
+        img.save(output_path, 'JPEG', quality=85)
+        return None
+    else:
+        buf = BytesIO()
+        img.save(buf, 'JPEG', quality=85)
+        return buf.getvalue()
 
 
 def generate_ranking():
