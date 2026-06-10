@@ -35,7 +35,7 @@ def orchestrate_publication():
     """Ciclo completo: leer datos → generar imagen → publicar en FB → loguear → notificar."""
     from .models import PublicationLog
     from .facebook_publisher import publish_photo
-    from .description_builder import build_description
+    from .description_builder import build_description, _contest_finished
     from .messaging import publish_ranking_event
 
     log.info("Iniciando ciclo de publicación...")
@@ -43,6 +43,11 @@ def orchestrate_publication():
     proceso_activo = _get_config("proceso_activo", "false").lower()
     if proceso_activo != "true":
         log.info("proceso_activo=False. Ciclo omitido.")
+        PublicationLog.objects.create(status="SKIPPED")
+        return
+
+    if _contest_finished():
+        log.info("Contest finalizado (>=18:05 hora Colombia). Ciclo detenido.")
         PublicationLog.objects.create(status="SKIPPED")
         return
 

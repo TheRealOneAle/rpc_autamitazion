@@ -1,6 +1,6 @@
 import logging
 import requests as http_requests
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.conf import settings
 from rest_framework.views import APIView
@@ -16,8 +16,22 @@ from .serializers import (
 log = logging.getLogger(__name__)
 
 
+def _config_is_complete():
+    required = ['competition_name', 'boca_year', 'boca_contest']
+    saved = set(SystemConfig.objects.filter(key__in=required).values_list('key', flat=True))
+    if not saved.issuperset(required):
+        return False
+    return SocialToken.objects.exists()
+
+
 def dashboard(request):
+    if not _config_is_complete():
+        return redirect('configuracion')
     return render(request, 'publisher/dashboard.html')
+
+
+def configuracion(request):
+    return render(request, 'publisher/config.html')
 
 
 def preview_image(request):
@@ -58,8 +72,12 @@ class StatusView(APIView):
         last_log = PublicationLog.objects.first()
         proceso_activo = SystemConfig.objects.filter(key='proceso_activo').values_list('value', flat=True).first()
 
+        from .description_builder import _contest_finished
+        contest_ended = _contest_finished()
+
         return Response({
-            "proceso_activo": proceso_activo == 'true',
+            "proceso_activo": proceso_activo == 'true' and not contest_ended,
+            "contest_ended": contest_ended,
             "scheduler_running": scheduler.running if scheduler else False,
             "next_run": next_run,
             "last_log": PublicationLogSerializer(last_log).data if last_log else None,
@@ -87,7 +105,7 @@ class LogsView(APIView):
 
 
 class ConfigView(APIView):
-    ALLOWED_KEYS = {'ms1_url', 'ms2_url', 'landing_page_url', 'competition_name', 'proceso_activo'}
+    ALLOWED_KEYS = {'ms1_url', 'ms2_url', 'landing_page_url', 'competition_name', 'proceso_activo', 'activated_by'}
 
     def get(self, request):
         configs = SystemConfig.objects.filter(key__in=self.ALLOWED_KEYS)
@@ -104,12 +122,43 @@ class ConfigView(APIView):
 
 
 class TokenView(APIView):
+    def get(self, request):
+        token = SocialToken.objects.first()
+        if token:
+            return Response({"configured": True, "page_id": token.page_id})
+        return Response({"configured": False})
+
     def post(self, request):
         serializer = SocialTokenWriteSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        SocialToken.objects.all().delete()
         token = serializer.save()
         return Response(SocialTokenSerializer(token).data, status=status.HTTP_201_CREATED)
+
+
+class BocaConfigView(APIView):
+    def get(self, request):
+        year    = SystemConfig.objects.filter(key='boca_year').values_list('value', flat=True).first() or '2025'
+        contest = SystemConfig.objects.filter(key='boca_contest').values_list('value', flat=True).first() or '10'
+        return Response({"year": year, "contest": contest})
+
+    def put(self, request):
+        year    = str(request.data.get('year', '')).strip()
+        contest = str(request.data.get('contest', '')).strip()
+        if not year or not contest:
+            return Response({"error": "year y contest son requeridos"}, status=status.HTTP_400_BAD_REQUEST)
+
+        SystemConfig.objects.update_or_create(key='boca_year',    defaults={'value': year})
+        SystemConfig.objects.update_or_create(key='boca_contest', defaults={'value': contest})
+
+        ms1_url = settings.MS1_URL
+        try:
+            http_requests.post(f"{ms1_url}/config", json={"year": year, "contest": contest}, timeout=10)
+        except Exception as e:
+            log.warning(f"No se pudo notificar a boca-scraper: {e}")
+
+        return Response({"year": year, "contest": contest})
 
 
 class CoachSubscribeView(APIView):

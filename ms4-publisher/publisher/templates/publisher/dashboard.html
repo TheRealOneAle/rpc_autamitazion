@@ -3,27 +3,90 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Automatizador de Publicaciones</title>
+  <title>RPC Social Stream</title>
   <style>
+    :root {
+      --bg:            #f5f3ff;
+      --card-bg:       #ffffff;
+      --text:          #1c1a2e;
+      --text-sub:      #6b7280;
+      --text-hint:     #9ca3af;
+      --border:        #e5e7eb;
+      --input-border:  #d1d5db;
+      --primary:       #7c3aed;
+      --primary-hover: #6d28d9;
+      --primary-dis:   #c4b5fd;
+      --green:         #16a34a;
+      --red:           #dc2626;
+      --fb-border:     #ddd;
+      --fb-reaction:   #65676b;
+      --shadow-card:   0 1px 4px rgba(0,0,0,0.10);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:            #0d0b1a;
+        --card-bg:       #181629;
+        --text:          #ede9fe;
+        --text-sub:      #a29abf;
+        --text-hint:     #6b6585;
+        --border:        #2e2a45;
+        --input-border:  #3d3760;
+        --primary:       #a78bfa;
+        --primary-hover: #8b5cf6;
+        --primary-dis:   #3d2d7a;
+        --green:         #4ade80;
+        --red:           #f87171;
+        --fb-border:     #2e2a45;
+        --fb-reaction:   #a29abf;
+        --shadow-card:   0 1px 6px rgba(0,0,0,0.4);
+      }
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f0f2f5;
-      color: #1c1e21;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
       padding: 24px 16px;
+      transition: background .2s, color .2s;
     }
 
-    h1 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: #1877f2;
-      margin-bottom: 4px;
+    /* TOPBAR */
+    .topbar {
+      max-width: 900px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
-    .subtitle { font-size: 0.85rem; color: #65676b; margin-bottom: 24px; }
+    h1 { font-size: 1.4rem; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+    .subtitle { font-size: 0.85rem; color: var(--text-sub); }
 
+    .config-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background .15s;
+      flex-shrink: 0;
+    }
+    .config-btn:hover { background: var(--border); }
+
+    /* GRID */
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -31,170 +94,131 @@
       max-width: 900px;
       margin: 0 auto;
     }
-
     @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
 
+    /* CARD */
     .card {
-      background: #fff;
+      background: var(--card-bg);
       border-radius: 12px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.12);
+      box-shadow: var(--shadow-card);
+      border: 1px solid var(--border);
       padding: 20px;
     }
 
     .card h2 {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #65676b;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-sub);
       text-transform: uppercase;
-      letter-spacing: .04em;
+      letter-spacing: .06em;
       margin-bottom: 16px;
     }
 
     /* STATUS */
     .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: #ccc; }
-    .dot.on  { background: #42b72a; }
-    .dot.off { background: #e41c1c; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--border); }
+    .dot.on  { background: var(--green); }
+    .dot.off { background: var(--red); }
     .status-label { font-size: 0.9rem; }
-    .next-run { font-size: 0.8rem; color: #65676b; margin-top: 4px; }
+    .next-run { font-size: 0.8rem; color: var(--text-sub); margin-top: 4px; }
 
     /* PUBLISH BUTTON */
     #btn-publish {
       width: 100%; margin-top: 16px; padding: 12px;
-      background: #1877f2; color: #fff; border: none;
+      background: var(--primary); color: #fff; border: none;
       border-radius: 8px; font-size: 1rem; font-weight: 600;
       cursor: pointer; transition: background .15s;
     }
-    #btn-publish:hover:not(:disabled) { background: #1558b0; }
-    #btn-publish:disabled { background: #9cb8e9; cursor: not-allowed; }
-    #publish-msg { margin-top: 10px; font-size: 0.85rem; text-align: center; min-height: 20px; color: #42b72a; }
-    #publish-msg.err { color: #e41c1c; }
+    #btn-publish:hover:not(:disabled) { background: var(--primary-hover); }
+    #btn-publish:disabled { background: var(--primary-dis); cursor: not-allowed; }
+    #publish-msg { margin-top: 10px; font-size: 0.85rem; text-align: center; min-height: 20px; color: var(--green); }
+    #publish-msg.err { color: var(--red); }
 
     /* FACEBOOK PREVIEW */
-    .fb-card { border: 1px solid #ddd; border-radius: 10px; overflow: hidden; font-size: 0.9rem; }
+    .fb-card { border: 1px solid var(--fb-border); border-radius: 10px; overflow: hidden; font-size: 0.9rem; }
     .fb-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
     .fb-avatar {
-      width: 40px; height: 40px; border-radius: 50%; background: #1877f2;
+      width: 40px; height: 40px; border-radius: 50%; background: var(--primary);
       display: flex; align-items: center; justify-content: center;
       color: #fff; font-weight: 700; font-size: 1.1rem; flex-shrink: 0;
     }
     .fb-name { font-weight: 600; font-size: 0.9rem; }
-    .fb-meta { font-size: 0.75rem; color: #65676b; }
+    .fb-meta { font-size: 0.75rem; color: var(--text-sub); }
     .fb-body {
       padding: 0 14px 14px; white-space: pre-wrap; line-height: 1.6;
-      color: #1c1e21; word-break: break-word;
+      color: var(--text); word-break: break-word;
     }
     .fb-img-placeholder {
-      background: linear-gradient(135deg, #e7f0fd 0%, #accbee 100%);
+      background: linear-gradient(135deg, var(--bg) 0%, var(--border) 100%);
       height: 180px; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      color: #1877f2; font-size: 0.85rem; gap: 8px; margin-bottom: 10px;
+      color: var(--primary); font-size: 0.85rem; gap: 8px; margin-bottom: 10px;
     }
     .fb-img-placeholder svg { opacity: .5; }
     .fb-reactions {
-      border-top: 1px solid #eee; padding: 8px 14px;
-      font-size: 0.8rem; color: #65676b; display: flex; gap: 16px;
+      border-top: 1px solid var(--fb-border); padding: 8px 14px;
+      font-size: 0.8rem; color: var(--fb-reaction); display: flex; gap: 16px;
     }
 
-    /* TOKEN FORM */
-    .token-form { display: flex; flex-direction: column; gap: 10px; }
-    .token-form label { font-size: 0.8rem; font-weight: 600; color: #444; }
-    .token-form input, .token-form textarea {
-      width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px;
-      font-size: 0.85rem; font-family: monospace; resize: vertical;
-    }
-    .token-form input:focus, .token-form textarea:focus { outline: none; border-color: #1877f2; }
-    #btn-token {
-      padding: 9px; background: #42b72a; color: #fff; border: none;
-      border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
-    }
-    #btn-token:hover { background: #36a020; }
-    #token-msg { font-size: 0.8rem; text-align: center; min-height: 18px; color: #42b72a; }
-    #token-msg.err { color: #e41c1c; }
-    .token-help { font-size: 0.75rem; color: #65676b; line-height: 1.4; }
-    .token-help a { color: #1877f2; }
-
-    .preview-note { font-size: 0.75rem; color: #65676b; margin-top: 12px; text-align: center; }
-    .loading { color: #65676b; font-size: 0.85rem; animation: pulse 1.2s infinite; }
+    .preview-note { font-size: 0.75rem; color: var(--text-sub); margin-top: 12px; text-align: center; }
+    .loading { color: var(--text-sub); font-size: 0.85rem; animation: pulse 1.2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   </style>
 </head>
 <body>
 
-  <div style="max-width:900px;margin:0 auto 20px;">
-    <h1>Automatizador de Publicaciones</h1>
-    <p class="subtitle">Vista previa y control de publicaciones en Facebook</p>
+  <div class="topbar">
+    <div>
+      <h1>RPC Social Stream</h1>
+      <p class="subtitle">Panel de publicaciones en Facebook</p>
+    </div>
+    <a href="/configuracion/" class="config-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      Configuración
+    </a>
   </div>
 
   <div class="grid">
 
     <!-- COLUMNA IZQUIERDA -->
     <div style="display:flex;flex-direction:column;gap:20px;">
-
-      <!-- STATUS -->
       <div class="card">
         <h2>Estado del servicio</h2>
         <div class="status-row">
           <span class="dot" id="dot-proceso"></span>
           <span class="status-label" id="label-proceso">Cargando...</span>
         </div>
-        <div class="status-row">
-          <span class="dot" id="dot-scheduler"></span>
-          <span class="status-label" id="label-scheduler">Cargando...</span>
-        </div>
         <p class="next-run" id="next-run"></p>
-
         <button id="btn-publish" disabled>Publicar ahora</button>
         <p id="publish-msg"></p>
       </div>
-
-      <!-- TOKEN -->
-      <div class="card">
-        <h2>Token de Facebook</h2>
-        <p class="token-help" style="margin-bottom:12px;">
-          Necesitas un <strong>Page Access Token</strong> con el permiso
-          <code>pages_manage_posts</code>. Obtenlo en el
-          <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a>:
-          selecciona tu app, luego tu pagina y genera el token.
-        </p>
-        <div class="token-form">
-          <div>
-            <label>Page ID</label>
-            <input type="text" id="inp-page-id" placeholder="123456789012345">
-          </div>
-          <div>
-            <label>Page Access Token</label>
-            <textarea id="inp-token" rows="3" placeholder="EAABsbCS..."></textarea>
-          </div>
-          <button id="btn-token">Guardar token</button>
-          <p id="token-msg"></p>
-        </div>
-      </div>
-
     </div>
 
     <!-- COLUMNA DERECHA: PREVIEW -->
     <div class="card">
       <h2>Vista previa del post</h2>
-
       <div class="fb-card">
         <div class="fb-header">
           <div class="fb-avatar">R</div>
           <div>
             <div class="fb-name" id="fb-page-name">RPC Competencia</div>
-            <div class="fb-meta">Ahora · Publico</div>
+            <div class="fb-meta">Ahora · Público</div>
           </div>
         </div>
 
         <div class="fb-img-placeholder" id="img-placeholder">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1877f2" stroke-width="1.5">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
             <path d="M21 15l-5-5L5 21"/>
           </svg>
           <span>Cargando imagen del ranking...</span>
         </div>
-        <img id="ranking-img" src="" alt="Ranking" style="display:none;width:100%;border-bottom:1px solid #eee;"
+        <img id="ranking-img" src="" alt="Ranking"
+             style="display:none;width:100%;border-bottom:1px solid var(--fb-border);"
              onerror="this.style.display='none';document.getElementById('img-placeholder').style.display='flex';"
              onload="this.style.display='block';document.getElementById('img-placeholder').style.display='none';"
         />
@@ -207,7 +231,6 @@
           <span>Compartir</span>
         </div>
       </div>
-
       <p class="preview-note" id="preview-note"></p>
     </div>
 
@@ -226,12 +249,23 @@
       const totalSubmissions = data.total_submissions   ?? '?';
       const teamsWithSolved  = data.teams_with_solved   ?? '?';
       const totalTeams       = data.total_teams         ?? '?';
+      const activatedBy      = config.activated_by      || '';
+
+      let footer = '(Automatizado por rpc social stream';
+      if (activatedBy) footer += `, gracias ${activatedBy} por activarme :)`;
+      footer += ')';
+
+      const nowCol = new Date(Date.now() - 5 * 3600 * 1000);
+      const finished = nowCol.getUTCHours() > 18 || (nowCol.getUTCHours() === 18 && nowCol.getUTCMinutes() >= 5);
+      const intro = finished
+        ? `Asi quedo la parte alta del tablero FINAL de la ${competitionName}.`
+        : `Asi va el tablero hasta ahora de la ${competitionName}.`;
 
       return (
-        `Asi quedo la parte alta del tablero FINAL de la ${competitionName}. ` +
+        `${intro} ` +
         `Se realizaron en total ${totalSubmissions} envios, donde ${teamsWithSolved} equipos ` +
         `(de ${totalTeams} en competencia) ` +
-        `#TodosSomosRPC #CreciendoTodosJuntos`
+        `#TodosSomosRPC #CreciendoTodosJuntos\n\n${footer}`
       );
     }
 
@@ -239,16 +273,16 @@
       try {
         const r = await fetch(`${API}/api/status/`);
         const d = await r.json();
-
-        document.getElementById('dot-proceso').className   = 'dot ' + (d.proceso_activo ? 'on' : 'off');
-        document.getElementById('label-proceso').textContent = d.proceso_activo ? 'Proceso activo' : 'Proceso inactivo';
-        document.getElementById('dot-scheduler').className   = 'dot ' + (d.scheduler_running ? 'on' : 'off');
-        document.getElementById('label-scheduler').textContent = d.scheduler_running ? 'Scheduler corriendo' : 'Scheduler detenido';
-        document.getElementById('next-run').textContent = d.next_run ? `Proxima ejecucion: ${fmt(d.next_run)}` : '';
-        document.getElementById('btn-publish').disabled = false;
-        return d;
+        document.getElementById('dot-proceso').className    = 'dot ' + (d.proceso_activo ? 'on' : 'off');
+        document.getElementById('label-proceso').textContent  = d.contest_ended
+          ? 'Contest finalizado (18:05)'
+          : d.proceso_activo ? 'Publicaciones activas' : 'Publicaciones inactivas';
+        document.getElementById('next-run').textContent = d.contest_ended
+          ? 'No habrá más publicaciones automáticas hoy'
+          : d.next_run ? `Próxima publicación automática: ${fmt(d.next_run)}` : '';
+        document.getElementById('btn-publish').disabled = d.contest_ended;
       } catch(e) {
-        document.getElementById('label-proceso').textContent = 'Sin conexion con el servicio';
+        document.getElementById('label-proceso').textContent = 'Sin conexión con el servicio';
       }
     }
 
@@ -269,10 +303,10 @@
         note.textContent = 'Vista previa con datos actuales de la competencia.';
         document.getElementById('fb-body').textContent = buildDescription(stats, configMap);
       } catch(e) {
-        note.textContent = 'No se pudieron obtener datos de la BD. Mostrando ejemplo.';
-        document.getElementById('fb-body').textContent = buildDescription({
-          total_teams: 173, total_submissions: 1335, teams_with_solved: 153,
-        }, configMap);
+        note.textContent = 'No se pudieron obtener datos. Mostrando ejemplo.';
+        document.getElementById('fb-body').textContent = buildDescription(
+          { total_teams: 173, total_submissions: 1335, teams_with_solved: 153 }, configMap
+        );
       }
     }
 
@@ -294,7 +328,7 @@
           msg.className = 'err';
         }
       } catch(e) {
-        msg.textContent = 'Error de conexion con el servicio';
+        msg.textContent = 'Error de conexión con el servicio';
         msg.className = 'err';
       } finally {
         btn.disabled = false;
@@ -302,41 +336,8 @@
       }
     });
 
-    document.getElementById('btn-token').addEventListener('click', async () => {
-      const pageId = document.getElementById('inp-page-id').value.trim();
-      const token  = document.getElementById('inp-token').value.trim();
-      const msg    = document.getElementById('token-msg');
-      if (!pageId || !token) {
-        msg.textContent = 'Completa el Page ID y el token';
-        msg.className = 'err';
-        return;
-      }
-      msg.textContent = 'Guardando...';
-      msg.className = '';
-      try {
-        const r = await fetch(`${API}/api/token/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ page_id: pageId, access_token: token }),
-        });
-        const d = await r.json();
-        if (r.ok) {
-          msg.textContent = 'Token guardado correctamente';
-          msg.className = '';
-          document.getElementById('inp-token').value = '';
-        } else {
-          msg.textContent = JSON.stringify(d);
-          msg.className = 'err';
-        }
-      } catch(e) {
-        msg.textContent = 'Error de conexion';
-        msg.className = 'err';
-      }
-    });
-
     function loadRankingImage() {
-      const img = document.getElementById('ranking-img');
-      img.src = `${API}/api/preview-image/?t=${Date.now()}`;
+      document.getElementById('ranking-img').src = `${API}/api/preview-image/?t=${Date.now()}`;
     }
 
     async function init() {
