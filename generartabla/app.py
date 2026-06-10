@@ -240,6 +240,9 @@ def generate():
         generate_ranking()
         return jsonify({"status": "success", "message": "Tabla generated successfully"}), 200
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[error] /generate fallo: {e}", flush=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
