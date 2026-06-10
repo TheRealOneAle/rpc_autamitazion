@@ -20,7 +20,7 @@ def _fetch_with_retry(method: str, url: str, **kwargs) -> requests.Response:
     """Llama a un endpoint con reintentos exponenciales."""
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            resp = getattr(requests, method)(url, timeout=30, **kwargs)
+            resp = getattr(requests, method)(url, timeout=120, **kwargs)
             resp.raise_for_status()
             return resp
         except requests.RequestException as e:
