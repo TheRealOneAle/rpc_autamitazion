@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y \
     firefox-esr \
     wget \
     && rm -rf /var/lib/apt/lists/*
-RUN GECKO_VER="0.35.0" && \
+RUN GECKO_VER="0.37.0" && \
     wget -q "https://github.com/mozilla/geckodriver/releases/download/v${GECKO_VER}/geckodriver-v${GECKO_VER}-linux64.tar.gz" -O /tmp/geckodriver.tar.gz && \
     tar -xzf /tmp/geckodriver.tar.gz -C /usr/local/bin && \
     rm /tmp/geckodriver.tar.gz && \

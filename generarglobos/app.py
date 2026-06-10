@@ -12,9 +12,20 @@ GLOBOS_DIR = os.path.join(os.path.dirname(__file__), 'globosgenerados')
 
 @app.route('/globo/<letter>.png')
 def serve_globo(letter):
+    os.makedirs(GLOBOS_DIR, exist_ok=True)
     path = os.path.join(GLOBOS_DIR, f'{letter.upper()}.png')
     if not os.path.exists(path):
-        return jsonify({"error": "not found"}), 404
+        # Genera todos los globos si no existen
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("generarglobos_mod", SCRIPT_PATH)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            mod.generar_globos()
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    if not os.path.exists(path):
+        return jsonify({"error": "globo no generado"}), 404
     return send_file(path, mimetype='image/png')
 
 
