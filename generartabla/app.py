@@ -24,20 +24,40 @@ ROUTING_KEY = "ranking.generado"
 COACH_SERVICE_URL = os.environ.get("COACH_SERVICE_URL", "http://coach-service:5003")
 
 RANKING_CSS = """
-body { font-family: Arial, sans-serif; background-color: #f4f6f7; }
+@page { size: 1100px 2000px; margin: 0; }
+html, body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f7;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
 .cabecera { display: flex; align-items: center; justify-content: center; gap: 15px; }
-.logorpc { width: 100px; }
-table { border-collapse: collapse; margin: auto; width: 65%; background: white; border-radius: 10px; overflow: hidden; }
+.logorpc { width: 150px; }
+table {
+    border-collapse: collapse;
+    margin: 10px auto;
+    width: 97%;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+}
 th { background-color: #CF1F4A; color: white; padding: 12px; }
-td { vertical-align: middle }
+td { vertical-align: middle; }
 .numequipo { text-align: center; }
-.puntos { text-align: center; }
-.problemTeam { text-align: center; }
+.puntos { text-align: center; white-space: nowrap; }
+.problemTeam { text-align: center; padding: 4px; }
 tr:nth-child(even) { background-color: #f2f2f2; }
-.balloon { width: 28px; }
-.flag { width: 25px; height: 25px; border-radius: 50%; vertical-align: middle }
-.team-col { display: flex; align-items: center; gap: 10px; padding: 10px; }
+.balloon { width: 30px; height: auto; }
+.flag { width: 25px; height: 25px; border-radius: 50%; vertical-align: middle; }
+.team-col { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
 """
+
+FALLBACK_COLORS = [
+    '#FF8C94', '#8B0000', '#FF00FF', '#C8C8C8',
+    '#006400', '#FF0000', '#32CD32', '#AAAAAA',
+    '#FFD700', '#0000FF', '#111111', '#0055CC', '#FF8C00',
+]
 
 
 def _get_rabbit_params():
@@ -52,17 +72,38 @@ def _get_rabbit_params():
     )
 
 
+def _globo_img_html(globos_dir, letter_idx):
+    """Returns an <img> with base64 data URI if the PNG exists, else a CSS balloon shape."""
+    import base64
+    path = os.path.join(globos_dir, f'{chr(65 + letter_idx)}.png')
+    if os.path.exists(path):
+        with open(path, 'rb') as f:
+            b64 = base64.b64encode(f.read()).decode()
+        return f'<img src="data:image/png;base64,{b64}" class="balloon">'
+    color = FALLBACK_COLORS[letter_idx % len(FALLBACK_COLORS)]
+    return (
+        f'<span style="display:inline-block;width:22px;height:28px;'
+        f'background:{color};border-radius:50% 50% 50% 50%/60% 60% 40% 40%;'
+        f'border:1px solid rgba(0,0,0,0.25);"></span>'
+    )
+
+
 def _ensure_globos(cantidadProblemas):
     """Downloads balloon images from GLOBOS_SERVICE_URL to /tmp/globosgenerados/.
-    Falls back to /app/globosgenerados/ if HTTP fails."""
+    Falls back to /app/globosgenerados/ (may be empty — _globo_img_html handles that case)."""
     tmp_dir = '/tmp/globosgenerados'
     os.makedirs(tmp_dir, exist_ok=True)
+    try:
+        # Pre-warm: trigger generation in case the service is sleeping
+        requests.post(f"{GLOBOS_SERVICE_URL}/generate", timeout=60)
+    except Exception as e:
+        print(f"[warn] pre-generación de globos: {e}", flush=True)
     try:
         for i in range(cantidadProblemas):
             letter = chr(65 + i)
             dest = os.path.join(tmp_dir, f'{letter}.png')
             if not os.path.exists(dest):
-                r = requests.get(f"{GLOBOS_SERVICE_URL}/globo/{letter}.png", timeout=10)
+                r = requests.get(f"{GLOBOS_SERVICE_URL}/globo/{letter}.png", timeout=30)
                 r.raise_for_status()
                 with open(dest, 'wb') as f:
                     f.write(r.content)
@@ -126,11 +167,7 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
             solved = (i < len(problemasTeam) and j < len(problemasTeam[i])
                       and problemasTeam[i][j] == 1)
             if solved:
-                problemasHtml += (
-                    f'<td class="problemTeam">'
-                    f'<img src="file://{globos_dir}/{chr(65 + j)}.png" class="balloon">'
-                    f'</td>'
-                )
+                problemasHtml += f'<td class="problemTeam">{_globo_img_html(globos_dir, j)}</td>'
             else:
                 problemasHtml += '<td>-</td>'
 
@@ -170,6 +207,21 @@ def _screenshot_html(html_content, output_path=None):
 
     png_bytes = HTML(string=html_content, base_url='/').write_png()
     img = Image.open(BytesIO(png_bytes)).convert('RGB')
+
+    # Auto-crop background color from bottom
+    bg = (244, 246, 247)
+    w, h = img.size
+    crop_y = h
+    step = max(w // 20, 1)
+    for y in range(h - 1, h // 3, -1):
+        sample = [img.getpixel((x, y)) for x in range(0, w, step)]
+        if not all(
+            abs(p[0] - bg[0]) < 15 and abs(p[1] - bg[1]) < 15 and abs(p[2] - bg[2]) < 15
+            for p in sample
+        ):
+            crop_y = min(y + 40, h)
+            break
+    img = img.crop((0, 0, w, crop_y))
 
     if output_path:
         img.save(output_path, 'JPEG', quality=85)
