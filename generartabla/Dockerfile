@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN mkdir -p globosgenerados
 EXPOSE 5002
-CMD ["python", "app.py"]
+CMD ["sh", "-c", "gunicorn app:app --bind 0.0.0.0:${PORT:-5002} --workers 1 --timeout 120"]

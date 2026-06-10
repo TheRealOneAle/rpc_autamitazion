@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuración — RPC Social Stream</title>
+  <style>
+    :root {
+      --bg:               #f5f3ff;
+      --card-bg:          #ffffff;
+      --text:             #1c1a2e;
+      --text-sub:         #6b7280;
+      --text-hint:        #9ca3af;
+      --border:           #e5e7eb;
+      --input-bg:         #ffffff;
+      --input-border:     #d1d5db;
+      --primary:          #7c3aed;
+      --primary-hover:    #6d28d9;
+      --primary-light:    #ede9fe;
+      --primary-disabled: #c4b5fd;
+      --green:            #16a34a;
+      --green-hover:      #15803d;
+      --green-light:      #dcfce7;
+      --green-text:       #15803d;
+      --red:              #dc2626;
+      --shadow:           rgba(109, 40, 217, 0.08);
+      --shadow-card:      0 1px 4px rgba(0,0,0,0.10);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:               #0d0b1a;
+        --card-bg:          #181629;
+        --text:             #ede9fe;
+        --text-sub:         #a29abf;
+        --text-hint:        #6b6585;
+        --border:           #2e2a45;
+        --input-bg:         #12101f;
+        --input-border:     #3d3760;
+        --primary:          #a78bfa;
+        --primary-hover:    #8b5cf6;
+        --primary-light:    #2d1f5e;
+        --primary-disabled: #3d2d7a;
+        --green:            #4ade80;
+        --green-hover:      #22c55e;
+        --green-light:      #052e16;
+        --green-text:       #4ade80;
+        --red:              #f87171;
+        --shadow:           rgba(0,0,0,0.35);
+        --shadow-card:      0 1px 6px rgba(0,0,0,0.4);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+      transition: background .2s, color .2s;
+    }
+
+    /* TOPBAR */
+    .topbar {
+      max-width: 680px;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .topbar-title h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 2px;
+    }
+    .topbar-title p {
+      font-size: 0.85rem;
+      color: var(--text-sub);
+    }
+
+    .go-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 18px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background .15s, opacity .15s;
+      flex-shrink: 0;
+    }
+    .go-btn:hover:not([data-disabled]) { background: var(--primary-hover); }
+    .go-btn[data-disabled] {
+      background: var(--primary-disabled);
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    @media (prefers-color-scheme: dark) {
+      .go-btn[data-disabled] { color: #9d8ecf; }
+    }
+
+    /* STACK */
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    /* CARD */
+    .card {
+      background: var(--card-bg);
+      border-radius: 14px;
+      box-shadow: var(--shadow-card);
+      padding: 22px 24px;
+      border: 1px solid var(--border);
+    }
+
+    .card h2 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 16px;
+    }
+
+    /* CHECKLIST */
+    .checklist { display: flex; flex-direction: column; gap: 10px; }
+    .check-item { display: flex; align-items: center; gap: 10px; }
+    .check-icon {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 0.72rem;
+      font-weight: 700;
+      transition: background .2s;
+    }
+    .check-icon.pending { background: var(--border); color: var(--text-sub); }
+    .check-icon.done    { background: var(--green); color: #fff; }
+    .check-icon.optional { background: var(--primary-light); color: var(--primary); }
+    .check-label { font-size: 0.9rem; color: var(--text); }
+    .check-label.pending { color: var(--text-sub); }
+    .check-label.done    { color: var(--text); }
+    .check-badge {
+      margin-left: 6px;
+      font-size: 0.7rem;
+      padding: 1px 7px;
+      border-radius: 10px;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* FIELDS */
+    .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+    .field:last-of-type { margin-bottom: 0; }
+    .field label { font-size: 0.8rem; font-weight: 600; color: var(--text-sub); }
+
+    .field input, .field textarea {
+      padding: 9px 12px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: var(--text);
+      width: 100%;
+      transition: border-color .15s;
+    }
+    .field textarea {
+      font-size: 0.85rem;
+      font-family: monospace;
+      resize: vertical;
+    }
+    .field input:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    .field input::placeholder, .field textarea::placeholder { color: var(--text-hint); }
+    .field .hint { font-size: 0.75rem; color: var(--text-hint); line-height: 1.4; }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 480px) { .row-2 { grid-template-columns: 1fr; } }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    /* SAVE BUTTON */
+    .save-btn {
+      width: 100%;
+      margin-top: 16px;
+      padding: 10px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .save-btn:hover { background: var(--primary-hover); }
+    .save-btn.green { background: var(--green); }
+    .save-btn.green:hover { background: var(--green-hover); }
+
+    /* MESSAGES */
+    .msg { margin-top: 9px; font-size: 0.82rem; text-align: center; min-height: 18px; color: var(--green); }
+    .msg.err { color: var(--red); }
+
+    /* URL PREVIEW */
+    .url-preview { font-size: 0.72rem; color: var(--text-hint); margin-top: 8px; word-break: break-all; }
+
+    /* BADGE */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      background: var(--green-light);
+      color: var(--green-text);
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: 6px;
+    }
+
+    /* TOKEN HELP */
+    .token-help { font-size: 0.75rem; color: var(--text-hint); line-height: 1.5; margin-bottom: 14px; }
+    .token-help a { color: var(--primary); text-decoration: none; }
+    .token-help a:hover { text-decoration: underline; }
+    .token-help code {
+      background: var(--primary-light);
+      color: var(--primary);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+    }
+
+    /* HINT BELOW GO BTN */
+    .go-hint {
+      max-width: 680px;
+      margin: 10px auto 0;
+      text-align: right;
+      font-size: 0.78rem;
+      color: var(--text-hint);
+    }
+    @media (max-width: 560px) { .go-hint { text-align: center; } }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-title">
+      <h1>Configuración</h1>
+      <p>Completa los datos para activar el publicador</p>
+    </div>
+    <button class="go-btn" id="btn-go" data-disabled onclick="goToPanel()">
+      Ir al publicador
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+    </button>
+  </div>
+
+  <div id="go-hint" class="go-hint">Completa los pasos requeridos para continuar</div>
+
+  <div class="stack" style="margin-top:16px;">
+
+    <!-- PROGRESO -->
+    <div class="card">
+      <h2>Progreso</h2>
+      <div class="checklist">
+        <div class="check-item">
+          <div class="check-icon pending" id="chk-token">1</div>
+          <span class="check-label pending" id="lbl-token">Token de Facebook</span>
+        </div>
+        <div class="check-item">
+          <div class="check-icon pending" id="chk-contest">2</div>
+          <span class="check-label pending" id="lbl-contest">Datos del contest</span>
+        </div>
+        <div class="check-item">
+          <div class="check-icon optional" id="chk-operator">–</div>
+          <span class="check-label" id="lbl-operator">
+            Operador del sistema
+            <span class="check-badge">opcional</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOKEN DE FACEBOOK -->
+    <div class="card">
+      <h2>Token de Facebook</h2>
+      <p class="token-help">
+        Necesitas un <strong>Page Access Token</strong> con el permiso
+        <code>pages_manage_posts</code>. Obtenlo en el
+        <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a>:
+        selecciona tu app, luego tu página y genera el token.
+      </p>
+      <div class="field">
+        <label for="inp-page-id">Page ID</label>
+        <input type="text" id="inp-page-id" placeholder="123456789012345">
+      </div>
+      <div class="field">
+        <label for="inp-token">Page Access Token</label>
+        <textarea id="inp-token" rows="3" placeholder="EAABsbCS..."></textarea>
+      </div>
+      <div id="token-badge-wrap"></div>
+      <button class="save-btn green" id="btn-token">Guardar token</button>
+      <p class="msg" id="msg-token"></p>
+    </div>
+
+    <!-- DATOS DEL CONTEST -->
+    <div class="card">
+      <h2>Datos del contest</h2>
+      <div class="field">
+        <label for="inp-competition-name">Nombre de la competencia</label>
+        <input type="text" id="inp-competition-name" placeholder="Ej: Competencia 02 RPC 2026">
+        <span class="hint">Aparece en el texto del post de Facebook.</span>
+      </div>
+      <hr class="divider">
+      <div class="row-2">
+        <div class="field">
+          <label for="inp-boca-year">Año</label>
+          <input type="number" id="inp-boca-year" placeholder="2026" min="2000" max="2099">
+        </div>
+        <div class="field">
+          <label for="inp-boca-contest">Número de contest</label>
+          <input type="number" id="inp-boca-contest" placeholder="10" min="1">
+        </div>
+      </div>
+      <p class="url-preview" id="boca-url-preview"></p>
+      <button class="save-btn" id="btn-contest">Guardar datos del contest</button>
+      <p class="msg" id="msg-contest"></p>
+    </div>
+
+    <!-- OPERADOR -->
+    <div class="card">
+      <h2>Operador del sistema <span class="check-badge" style="text-transform:none;letter-spacing:0;">opcional</span></h2>
+      <div class="field">
+        <label for="inp-activated-by">Nombre de quien activó el sistema</label>
+        <input type="text" id="inp-activated-by" placeholder="Ej: Juan Pérez (puede dejarse vacío)">
+        <span class="hint">Si se completa, aparece en el mensaje de Facebook como agradecimiento.</span>
+      </div>
+      <div id="activated-badge-wrap"></div>
+      <button class="save-btn" id="btn-activated">Guardar operador</button>
+      <p class="msg" id="msg-activated"></p>
+    </div>
+
+  </div>
+
+  <script>
+    const API = '';
+    const state = { token: false, contest: false, operator: false };
+
+    function getCookie(name) {
+      const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+      return v ? v[2] : '';
+    }
+
+    function setCheck(key, done) {
+      state[key] = done;
+      if (key === 'operator') {
+        const icon = document.getElementById('chk-operator');
+        icon.className = done ? 'check-icon done' : 'check-icon optional';
+        icon.textContent = done ? '✓' : '–';
+        return;
+      }
+      const icon  = document.getElementById('chk-' + key);
+      const label = document.getElementById('lbl-' + key);
+      const nums  = { token: '1', contest: '2' };
+      if (done) {
+        icon.className  = 'check-icon done';
+        icon.textContent = '✓';
+        label.className = 'check-label done';
+      } else {
+        icon.className  = 'check-icon pending';
+        icon.textContent = nums[key];
+        label.className = 'check-label pending';
+      }
+      updateGoBtn();
+    }
+
+    function updateGoBtn() {
+      const ready = state.token && state.contest;
+      const btn   = document.getElementById('btn-go');
+      const hint  = document.getElementById('go-hint');
+      if (ready) {
+        btn.removeAttribute('data-disabled');
+        hint.textContent = 'Todo listo — puedes ir al publicador';
+        hint.style.color = 'var(--green)';
+      } else {
+        btn.setAttribute('data-disabled', '');
+        const missing = [];
+        if (!state.token)   missing.push('token de Facebook');
+        if (!state.contest) missing.push('datos del contest');
+        hint.textContent = `Falta: ${missing.join(', ')}`;
+        hint.style.color = '';
+      }
+    }
+
+    function goToPanel() {
+      if (state.token && state.contest) window.location.href = '/';
+    }
+
+    function updateBocaPreview() {
+      const year    = document.getElementById('inp-boca-year').value.trim();
+      const contest = document.getElementById('inp-boca-contest').value.trim();
+      const el = document.getElementById('boca-url-preview');
+      el.textContent = year && contest
+        ? `URL activa: https://redprogramacioncompetitiva.com/contests/${year}/${String(contest).padStart(2,'0')}`
+        : '';
+    }
+
+    document.getElementById('inp-boca-year').addEventListener('input', updateBocaPreview);
+    document.getElementById('inp-boca-contest').addEventListener('input', updateBocaPreview);
+
+    async function loadAll() {
+      try {
+        const [configRes, bocaRes, tokenRes] = await Promise.all([
+          fetch(`${API}/api/config/`),
+          fetch(`${API}/api/boca-config/`),
+          fetch(`${API}/api/token/`),
+        ]);
+        const configs   = await configRes.json();
+        const boca      = await bocaRes.json();
+        const tokenInfo = await tokenRes.json();
+
+        const map = {};
+        configs.forEach(c => { map[c.key] = c.value; });
+
+        if (tokenInfo.configured) {
+          document.getElementById('token-badge-wrap').innerHTML =
+            `<span class="badge">Token configurado — Page ID: ${tokenInfo.page_id}</span>`;
+          setCheck('token', true);
+        }
+
+        if (map.competition_name) document.getElementById('inp-competition-name').value = map.competition_name;
+        if (boca.year)    document.getElementById('inp-boca-year').value    = boca.year;
+        if (boca.contest) document.getElementById('inp-boca-contest').value = boca.contest;
+        updateBocaPreview();
+
+        if (map.competition_name && boca.year && boca.contest) setCheck('contest', true);
+
+        if (map.activated_by) {
+          document.getElementById('inp-activated-by').value = map.activated_by;
+          document.getElementById('activated-badge-wrap').innerHTML =
+            `<span class="badge">Operador: ${map.activated_by}</span>`;
+          setCheck('operator', true);
+        }
+      } catch(_) {}
+    }
+
+    document.getElementById('btn-token').addEventListener('click', async () => {
+      const pageId = document.getElementById('inp-page-id').value.trim();
+      const token  = document.getElementById('inp-token').value.trim();
+      const msg    = document.getElementById('msg-token');
+      if (!pageId || !token) {
+        msg.textContent = 'Completa el Page ID y el token';
+        msg.className = 'msg err';
+        return;
+      }
+      msg.textContent = 'Guardando...';
+      msg.className = 'msg';
+      try {
+        const r = await fetch(`${API}/api/token/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page_id: pageId, access_token: token }),
+        });
+        const d = await r.json();
+        if (r.ok) {
+          msg.textContent = 'Token guardado';
+          document.getElementById('inp-token').value = '';
+          document.getElementById('token-badge-wrap').innerHTML =
+            `<span class="badge">Token configurado — Page ID: ${pageId}</span>`;
+          setCheck('token', true);
+        } else {
+          msg.textContent = JSON.stringify(d);
+          msg.className = 'msg err';
+        }
+      } catch(_) {
+        msg.textContent = 'Error de conexión';
+        msg.className = 'msg err';
+      }
+    });
+
+    document.getElementById('btn-contest').addEventListener('click', async () => {
+      const name    = document.getElementById('inp-competition-name').value.trim();
+      const year    = document.getElementById('inp-boca-year').value.trim();
+      const contest = document.getElementById('inp-boca-contest').value.trim();
+      const msg     = document.getElementById('msg-contest');
+      if (!name || !year || !contest) {
+        msg.textContent = 'Todos los campos son obligatorios';
+        msg.className = 'msg err';
+        return;
+      }
+      msg.textContent = 'Guardando...';
+      msg.className = 'msg';
+      try {
+        const [r1, r2] = await Promise.all([
+          fetch(`${API}/api/boca-config/`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ year, contest }),
+          }),
+          fetch(`${API}/api/config/`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ competition_name: name }),
+          }),
+        ]);
+        if (r1.ok && r2.ok) {
+          msg.textContent = 'Guardado';
+          updateBocaPreview();
+          setCheck('contest', true);
+        } else {
+          msg.textContent = 'Error al guardar';
+          msg.className = 'msg err';
+        }
+      } catch(_) {
+        msg.textContent = 'Error de conexión';
+        msg.className = 'msg err';
+      }
+    });
+
+    document.getElementById('btn-activated').addEventListener('click', async () => {
+      const name = document.getElementById('inp-activated-by').value.trim();
+      const msg  = document.getElementById('msg-activated');
+      msg.textContent = 'Guardando...';
+      msg.className = 'msg';
+      try {
+        const r = await fetch(`${API}/api/config/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ activated_by: name }),
+        });
+        if (r.ok) {
+          msg.textContent = name ? 'Operador guardado' : 'Guardado (sin operador)';
+          document.getElementById('activated-badge-wrap').innerHTML = name
+            ? `<span class="badge">Operador: ${name}</span>`
+            : '';
+          setCheck('operator', !!name);
+        } else {
+          const d = await r.json();
+          msg.textContent = d.detail || 'Error al guardar';
+          msg.className = 'msg err';
+        }
+      } catch(_) {
+        msg.textContent = 'Error de conexión';
+        msg.className = 'msg err';
+      }
+    });
+
+    loadAll();
+  </script>
+</body>
+</html>
