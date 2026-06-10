@@ -1,21 +1,46 @@
 from flask import Flask, jsonify, send_file
 import os
-import subprocess
-import sys
 
 app = Flask(__name__)
 
-# Path to the globos generation script
 SCRIPT_PATH = os.path.join(os.path.dirname(__file__), 'generarglobos.py')
-# Directory where globos are stored
 GLOBOS_DIR = os.path.join(os.path.dirname(__file__), 'globosgenerados')
+
+# Default colors used when BD service is unavailable
+FALLBACK_COLORS = {
+    'A': '#FF8C94', 'B': '#8B0000', 'C': '#FF00FF', 'D': '#C8C8C8',
+    'E': '#006400', 'F': '#FF0000', 'G': '#32CD32', 'H': '#AAAAAA',
+    'I': '#FFD700', 'J': '#0000FF', 'K': '#111111', 'L': '#0055CC', 'M': '#FF8C00',
+}
+
+
+def _generate_balloon(letter, output_path, color_hex):
+    """Generates a balloon PNG using the template images and the given hex color."""
+    from PIL import Image
+    base = os.path.dirname(__file__)
+    relleno = Image.open(os.path.join(base, 'bigballoon.png')).convert('RGBA')
+    contorno = Image.open(os.path.join(base, 'bigballoontransp.png')).convert('RGBA')
+
+    color_hex = color_hex.lstrip('#')
+    r, g, b = int(color_hex[0:2], 16), int(color_hex[2:4], 16), int(color_hex[4:6], 16)
+
+    color_img = Image.new('RGBA', relleno.size, (r, g, b, 255))
+    color_img.putalpha(relleno.split()[3])
+
+    result = color_img.copy()
+    for offset in [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)]:
+        result.alpha_composite(contorno, offset)
+
+    result.save(output_path)
+
 
 @app.route('/globo/<letter>.png')
 def serve_globo(letter):
+    upper = letter.upper()
     os.makedirs(GLOBOS_DIR, exist_ok=True)
-    path = os.path.join(GLOBOS_DIR, f'{letter.upper()}.png')
+    path = os.path.join(GLOBOS_DIR, f'{upper}.png')
+
     if not os.path.exists(path):
-        # Genera todos los globos si no existen
         try:
             import importlib.util
             spec = importlib.util.spec_from_file_location("generarglobos_mod", SCRIPT_PATH)
@@ -23,36 +48,30 @@ def serve_globo(letter):
             spec.loader.exec_module(mod)
             mod.generar_globos()
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            print(f"[warn] generar_globos falló: {e}", flush=True)
+
+    if not os.path.exists(path):
+        color = FALLBACK_COLORS.get(upper, '#CCCCCC')
+        try:
+            _generate_balloon(upper, path, color)
+            print(f"[info] globo {upper} generado con color fallback {color}", flush=True)
+        except Exception as e:
+            return jsonify({"error": f"No se pudo generar globo: {e}"}), 500
+
     if not os.path.exists(path):
         return jsonify({"error": "globo no generado"}), 404
+
     return send_file(path, mimetype='image/png')
 
 
 @app.route('/generate', methods=['POST'])
 def generate_globos():
-    # Check if globos are already generated
-    if not os.path.exists(GLOBOS_DIR):
-        os.makedirs(GLOBOS_DIR)
-    
-    # Check if we have the expected globos (A.png to M.png)
-    expected_globos = [f"{chr(i)}.png" for i in range(65, 78)]  # A to M
-    missing_globos = [g for g in expected_globos if not os.path.exists(os.path.join(GLOBOS_DIR, g))]
-    
-    if not missing_globos:
-        return jsonify({"status": "success", "message": "Globos already generated"}), 200
-    
-    # Import and run the generation function directly
+    os.makedirs(GLOBOS_DIR, exist_ok=True)
     try:
-        # Make sure globosgenerados directory exists
-        os.makedirs(GLOBOS_DIR, exist_ok=True)
-        
-        # Import the module and call the function
         import importlib.util
         spec = importlib.util.spec_from_file_location("generarglobos_mod", SCRIPT_PATH)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        
         success, msg = mod.generar_globos()
         if success:
             return jsonify({"status": "success", "message": msg}), 200
@@ -63,16 +82,20 @@ def generate_globos():
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 @app.route('/status', methods=['GET'])
 def status():
-    # Check if we have the expected globos
-    expected_globos = [f"{chr(i)}.png" for i in range(65, 78)]  # A to M
-    missing_globos = [g for g in expected_globos if not os.path.exists(os.path.join(GLOBOS_DIR, g))]
-    
-    if missing_globos:
-        return jsonify({"status": "pending", "missing": missing_globos}), 200
-    else:
-        return jsonify({"status": "complete"}), 200
+    expected = [f"{chr(i)}.png" for i in range(65, 78)]
+    missing = [g for g in expected if not os.path.exists(os.path.join(GLOBOS_DIR, g))]
+    if missing:
+        return jsonify({"status": "pending", "missing": missing}), 200
+    return jsonify({"status": "complete"}), 200
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "healthy"}), 200
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

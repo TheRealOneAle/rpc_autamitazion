@@ -213,7 +213,7 @@ def _screenshot_html(html_content, output_path=None):
     w, h = img.size
     crop_y = h
     step = max(w // 20, 1)
-    for y in range(h - 1, h // 3, -1):
+    for y in range(h - 1, 0, -1):
         sample = [img.getpixel((x, y)) for x in range(0, w, step)]
         if not all(
             abs(p[0] - bg[0]) < 15 and abs(p[1] - bg[1]) < 15 and abs(p[2] - bg[2]) < 15
