@@ -37,12 +37,12 @@ services:
         fromService:
           type: web
           name: boca-scraper
-          property: url
+          property: host
       - key: GLOBOS_SERVICE_URL
         fromService:
           type: web
           name: generarglobos
-          property: url
+          property: host
       - key: CLOUDAMQP_URL
         sync: false
 
@@ -77,12 +77,12 @@ services:
         fromService:
           type: web
           name: boca-scraper
-          property: url
+          property: host
       - key: MS2_URL
         fromService:
           type: web
           name: generartabla
-          property: url
+          property: host
       - key: CLOUDAMQP_URL
         sync: false
       - key: SECRET_KEY
@@ -91,3 +91,16 @@ services:
         value: "False"
       - key: ALLOWED_HOSTS
         value: "*"
+
+  # ── frontend (React/Vite) ─────────────────────────────────────────────────────
+  - type: web
+    name: frontend
+    env: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      - key: VITE_MS4_URL
+        fromService:
+          type: web
+          name: ms4-publisher
+          property: host

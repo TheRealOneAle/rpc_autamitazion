@@ -15,12 +15,16 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.auth',
     'rest_framework',
+    'corsheaders',
     'publisher',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
 ]
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'config.urls'
 WSGI_APPLICATION = 'config.wsgi.application'
@@ -50,14 +54,28 @@ LANGUAGE_CODE = 'es-co'
 TIME_ZONE = 'America/Bogota'
 USE_TZ = True
 
-# RabbitMQ
-RABBIT_HOST = os.environ.get('RABBIT_HOST', 'rabbitmq')
-RABBIT_USER = os.environ.get('RABBIT_USER', 'rpc')
-RABBIT_PASS = os.environ.get('RABBIT_PASS', 'rpc1234')
+# RabbitMQ — si existe CLOUDAMQP_URL se parsea automáticamente
+CLOUDAMQP_URL = os.environ.get('CLOUDAMQP_URL', '')
+if CLOUDAMQP_URL:
+    from urllib.parse import urlparse as _urlparse
+    _amqp = _urlparse(CLOUDAMQP_URL)
+    RABBIT_HOST = _amqp.hostname
+    RABBIT_USER = _amqp.username
+    RABBIT_PASS = _amqp.password
+    RABBIT_VHOST = _amqp.path.lstrip('/')
+else:
+    RABBIT_HOST = os.environ.get('RABBIT_HOST', 'rabbitmq')
+    RABBIT_USER = os.environ.get('RABBIT_USER', 'rpc')
+    RABBIT_PASS = os.environ.get('RABBIT_PASS', 'rpc1234')
+    RABBIT_VHOST = '/'
 RABBIT_EXCHANGE = 'rpc.events'
 RABBIT_ROUTING_KEY = 'ranking.published'
-CLOUDAMQP_URL = os.environ.get('CLOUDAMQP_URL', '')
 
-# Service URLs
-MS1_URL = os.environ.get('MS1_URL', 'http://ms1-connector:8001')
-MS2_URL = os.environ.get('MS2_URL', 'http://ms2-renderer:8002')
+# Service URLs — Render pasa solo el host; se normaliza a https://
+def _to_url(val, default):
+    if not val:
+        return default
+    return val if val.startswith('http') else f'https://{val}'
+
+MS1_URL = _to_url(os.environ.get('MS1_URL'), 'http://ms1-connector:8001')
+MS2_URL = _to_url(os.environ.get('MS2_URL'), 'http://ms2-renderer:8002')

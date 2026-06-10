@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
-const API = '/ms4-api'
+const _host = import.meta.env.VITE_MS4_URL || ''
+const API = _host.startsWith('http') ? _host : (_host ? `https://${_host}` : '')
 
 function fmt(iso) {
   if (!iso) return '—'

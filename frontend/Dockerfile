@@ -2,14 +2,12 @@ FROM node:18-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
+ARG VITE_MS4_URL
+ENV VITE_MS4_URL=$VITE_MS4_URL
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
-
-ENV MS4_PUBLISHER_URL=ms4-publisher:8000
-
-EXPOSE 80
-CMD ["/bin/sh", "-c", "envsubst '${MS4_PUBLISHER_URL}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+FROM node:18-alpine
+RUN npm install -g serve
+COPY --from=build /app/dist /app/dist
+CMD ["sh", "-c", "serve -s /app/dist -l ${PORT:-3000}"]

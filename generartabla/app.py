@@ -11,8 +11,13 @@ from selenium.webdriver.firefox.options import Options
 
 app = Flask(__name__)
 
-BD_SERVICE_URL = os.environ.get("BD_SERVICE_URL", "http://bd:3001")
-GLOBOS_SERVICE_URL = os.environ.get('GLOBOS_SERVICE_URL', 'http://generarglobos:5000')
+def _to_url(val, default):
+    if not val:
+        return default
+    return val if val.startswith("http") else f"https://{val}"
+
+BD_SERVICE_URL = _to_url(os.environ.get("BD_SERVICE_URL"), "http://bd:3001")
+GLOBOS_SERVICE_URL = _to_url(os.environ.get("GLOBOS_SERVICE_URL"), "http://generarglobos:5000")
 
 RABBIT_HOST = os.environ.get("RABBIT_HOST", "rabbitmq")
 RABBIT_USER = os.environ.get("RABBIT_USER", "rpc")
