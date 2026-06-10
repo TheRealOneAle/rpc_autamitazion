@@ -12,6 +12,7 @@ _COL_OFFSET = -5  # UTC-5
 
 
 def _contest_finished() -> bool:
+    return False  # deshabilitado temporalmente para pruebas
     from datetime import datetime, timezone, timedelta
     now_col = datetime.now(timezone(timedelta(hours=_COL_OFFSET)))
     end = now_col.replace(hour=_CONTEST_END_HOUR, minute=_CONTEST_END_MINUTE, second=0, microsecond=0)

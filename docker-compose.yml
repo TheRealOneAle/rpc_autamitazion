@@ -1,32 +1,14 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
-    ports:
-      - "5433:5432"
-    volumes:
-      - boca-pgdata:/var/lib/postgresql/data
-      - ./bd/000_roles.sql:/docker-entrypoint-initdb.d/000_roles.sql
-      - ./bd/backup/bkboca_2025_10:/docker-entrypoint-initdb.d/bkboca.sql
-    environment:
-      - POSTGRES_DB=bkboca
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=1234
-    restart: unless-stopped
-
-  bd:
-    build: ./bd
+  boca-scraper:
+    build: ./boca-scraper
     ports:
       - "3001:3001"
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=bkboca
-      - DB_USER=postgres
-      - DB_PASS=1234
-    depends_on:
-      - postgres
+      - BOCA_URL=https://redprogramacioncompetitiva.com/contests/2025/10
+      - BOCA_SALT=kbjmohlr4o7tbvmnbp8qdihs0k
+      - CACHE_TTL=60
     restart: unless-stopped
 
   generarglobos:
@@ -37,10 +19,9 @@ services:
       - ./generarglobos:/app
       - globos-data:/app/globosgenerados
     environment:
-      - BD_SERVICE_URL=http://bd:3001
+      - BD_SERVICE_URL=http://boca-scraper:3001
     depends_on:
-      - bd
-      - postgres
+      - boca-scraper
     restart: unless-stopped
 
   generartabla:
@@ -51,14 +32,13 @@ services:
       - ./generartabla:/app
       - globos-data:/app/globosgenerados
     environment:
-      - BD_SERVICE_URL=http://bd:3001
+      - BD_SERVICE_URL=http://boca-scraper:3001
       - RABBIT_HOST=rabbitmq
       - RABBIT_USER=rpc
       - RABBIT_PASS=rpc1234
       - COACH_SERVICE_URL=http://coach-service:5003
     depends_on:
-      - bd
-      - postgres
+      - boca-scraper
       - rabbitmq
     restart: unless-stopped
 
@@ -133,10 +113,10 @@ services:
       - "5003:5003"
     environment:
       - COACH_DB_URL=postgresql://postgres:1234@coach-postgres:5432/coachdb
-      - BD_SERVICE_URL=http://bd:3001
+      - BD_SERVICE_URL=http://boca-scraper:3001
     depends_on:
       - coach-postgres
-      - bd
+      - boca-scraper
     restart: unless-stopped
 
   notificacion-ranking-service:
@@ -180,7 +160,7 @@ services:
       - POSTGRES_PASSWORD=rpc_pass
       - POSTGRES_HOST=ms4-postgres
       - POSTGRES_PORT=5432
-      - MS1_URL=http://bd:3001
+      - MS1_URL=http://boca-scraper:3001
       - MS2_URL=http://generartabla:5002
       - RABBIT_HOST=rabbitmq
       - RABBIT_USER=rpc
@@ -188,20 +168,16 @@ services:
       - SECRET_KEY=${MS4_SECRET_KEY:-ms4-dev-secret-key}
       - DEBUG=True
       - ALLOWED_HOSTS=*
-    command: >
-      sh -c "python manage.py makemigrations publisher --noinput &&
-             python manage.py migrate --noinput &&
-             python manage.py runserver 0.0.0.0:8000"
+    command: sh /app/entrypoint.sh
     depends_on:
       - ms4-postgres
       - rabbitmq
-      - bd
+      - boca-scraper
       - generartabla
     restart: unless-stopped
 
 volumes:
   coach-pgdata:
-  boca-pgdata:
   globos-data:
   ms4-pgdata:
 
