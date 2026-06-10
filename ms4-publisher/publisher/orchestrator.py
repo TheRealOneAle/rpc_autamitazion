@@ -31,8 +31,9 @@ def _fetch_with_retry(method: str, url: str, **kwargs) -> requests.Response:
             time.sleep(wait)
 
 
-def orchestrate_publication():
-    """Ciclo completo: leer datos → generar imagen → publicar en FB → loguear → notificar."""
+def orchestrate_publication(force=False):
+    """Ciclo completo: leer datos → generar imagen → publicar en FB → loguear → notificar.
+    force=True omite la verificación de proceso_activo (usado desde el botón manual)."""
     from .models import PublicationLog
     from .facebook_publisher import publish_photo
     from .description_builder import build_description, _contest_finished
@@ -40,11 +41,12 @@ def orchestrate_publication():
 
     log.info("Iniciando ciclo de publicación...")
 
-    proceso_activo = _get_config("proceso_activo", "false").lower()
-    if proceso_activo != "true":
-        log.info("proceso_activo=False. Ciclo omitido.")
-        PublicationLog.objects.create(status="SKIPPED")
-        return
+    if not force:
+        proceso_activo = _get_config("proceso_activo", "false").lower()
+        if proceso_activo != "true":
+            log.info("proceso_activo=False. Ciclo omitido.")
+            PublicationLog.objects.create(status="SKIPPED")
+            return
 
     if _contest_finished():
         log.info("Contest finalizado (>=18:05 hora Colombia). Ciclo detenido.")

@@ -88,7 +88,7 @@ class TriggerView(APIView):
     def post(self, request):
         from .orchestrator import orchestrate_publication
         import threading
-        t = threading.Thread(target=orchestrate_publication, daemon=True)
+        t = threading.Thread(target=orchestrate_publication, kwargs={"force": True}, daemon=True)
         t.start()
         return Response({"detail": "Ciclo iniciado en segundo plano"}, status=status.HTTP_202_ACCEPTED)
 
