@@ -10,8 +10,9 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-_BASE_DEFAULT = os.environ.get("BOCA_URL", "https://redprogramacioncompetitiva.com/contests/2025/10")
-SALT = os.environ.get("BOCA_SALT", "kbjmohlr4o7tbvmnbp8qdihs0k")
+_BASE_DEFAULT = os.environ.get("BOCA_URL", "https://redprogramacioncompetitiva.com/contests/2026/06")
+BOCA_USER = os.environ.get("BOCA_USER", "silux")
+BOCA_PASS = os.environ.get("BOCA_PASS", "ovallos.")
 CACHE_TTL = int(os.environ.get("CACHE_TTL", "60"))
 
 # URL mutable en tiempo de ejecución (cambia con POST /config)
@@ -35,12 +36,14 @@ def _hash(s):
 def _login_and_fetch():
     base = _config["base"]
     session = requests.Session()
+    session.get(f"{base}/index.php", timeout=15)
+    sid = session.cookies.get("PHPSESSID", "")
     session.get(
         f"{base}/index.php",
-        params={"name": "board", "password": _hash(_hash("") + SALT)},
+        params={"name": BOCA_USER, "password": _hash(_hash(BOCA_PASS) + sid)},
         timeout=15,
     )
-    resp = session.get(f"{base}/score/index.php", timeout=15)
+    resp = session.get(f"{base}/admin/score.php", timeout=15)
     resp.raise_for_status()
     return resp.text
 

@@ -6,8 +6,9 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - BOCA_URL=https://redprogramacioncompetitiva.com/contests/2025/10
-      - BOCA_SALT=kbjmohlr4o7tbvmnbp8qdihs0k
+      - BOCA_URL=https://redprogramacioncompetitiva.com/contests/2026/06
+      - BOCA_USER=silux
+      - BOCA_PASS=ovallos.
       - CACHE_TTL=60
     restart: unless-stopped
 
