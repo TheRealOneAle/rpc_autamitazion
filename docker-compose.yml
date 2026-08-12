@@ -1,3 +1,5 @@
+version: '3.3'
+
 services:
   boca-scraper:
     build: ./boca-scraper
@@ -54,9 +56,9 @@ services:
   ms4-postgres:
     image: postgres:15
     environment:
-      - POSTGRES_DB=ms4_publisher
-      - POSTGRES_USER=rpc_user
-      - POSTGRES_PASSWORD=rpc_pass
+      - POSTGRES_DB=rpc_facebook
+      - POSTGRES_USER=rpc_facebook
+      - POSTGRES_PASSWORD=P3t4rd0_2026*
     volumes:
       - ms4-pgdata:/var/lib/postgresql/data
     restart: unless-stopped
