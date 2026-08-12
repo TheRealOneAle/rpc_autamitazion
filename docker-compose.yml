@@ -54,11 +54,11 @@ services:
     restart: unless-stopped
 
   ms4-postgres:
-    image: postgres:15
+    image: postgres:10.23-bullseye
     environment:
-      - POSTGRES_DB=rpc_facebook
-      - POSTGRES_USER=rpc_facebook
-      - POSTGRES_PASSWORD=P3t4rd0_2026*
+      - POSTGRES_DB=ms4_publisher
+      - POSTGRES_USER=rpc_user
+      - POSTGRES_PASSWORD=rpc_pass
     volumes:
       - ms4-pgdata:/var/lib/postgresql/data
     restart: unless-stopped
