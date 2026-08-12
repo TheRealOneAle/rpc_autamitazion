@@ -1,9 +1,6 @@
-from flask import Flask, jsonify, send_file, request
+from flask import Flask, jsonify, send_file
 import os
 import requests
-import time
-import json
-import pika
 from io import BytesIO
 
 app = Flask(__name__)
@@ -13,15 +10,8 @@ def _to_url(val, default):
         return default
     return val if val.startswith("http") else f"https://{val}"
 
-BD_SERVICE_URL = _to_url(os.environ.get("BD_SERVICE_URL"), "http://bd:3001")
+BD_SERVICE_URL = _to_url(os.environ.get("BD_SERVICE_URL"), "http://boca-scraper:3001")
 GLOBOS_SERVICE_URL = _to_url(os.environ.get("GLOBOS_SERVICE_URL"), "http://generarglobos:5000")
-
-RABBIT_HOST = os.environ.get("RABBIT_HOST", "rabbitmq")
-RABBIT_USER = os.environ.get("RABBIT_USER", "rpc")
-RABBIT_PASS = os.environ.get("RABBIT_PASS", "rpc1234")
-EXCHANGE = "rpc.events"
-ROUTING_KEY = "ranking.generado"
-COACH_SERVICE_URL = os.environ.get("COACH_SERVICE_URL", "http://coach-service:5003")
 
 RANKING_CSS = """
 @page { size: 1100px 2000px; margin: 0; }
@@ -58,18 +48,6 @@ FALLBACK_COLORS = [
     '#006400', '#FF0000', '#32CD32', '#AAAAAA',
     '#FFD700', '#0000FF', '#111111', '#0055CC', '#FF8C00',
 ]
-
-
-def _get_rabbit_params():
-    url = os.environ.get('CLOUDAMQP_URL')
-    if url:
-        return pika.URLParameters(url)
-    return pika.ConnectionParameters(
-        host=RABBIT_HOST,
-        credentials=pika.PlainCredentials(RABBIT_USER, RABBIT_PASS),
-        heartbeat=30, blocked_connection_timeout=10,
-        connection_attempts=3, retry_delay=2,
-    )
 
 
 def _globo_img_html(globos_dir, letter_idx):
@@ -111,42 +89,6 @@ def _ensure_globos(cantidadProblemas):
     except Exception as e:
         print(f"[warn] no se pudo descargar globos de {GLOBOS_SERVICE_URL}: {e}", flush=True)
         return '/app/globosgenerados'
-
-
-def publish_ranking_event(ranking_rows, cantidad_problemas):
-    import traceback
-    for attempt in range(3):
-        try:
-            params = _get_rabbit_params()
-            conn = pika.BlockingConnection(params)
-            ch = conn.channel()
-            ch.exchange_declare(exchange=EXCHANGE, exchange_type="topic", durable=True)
-            ch.queue_declare(queue="ranking_queue", durable=True)
-            ch.queue_bind(exchange=EXCHANGE, queue="ranking_queue", routing_key=ROUTING_KEY)
-
-            payload = {
-                "ranking": [
-                    {"userfullname": r["userfullname"], "country": r["country"],
-                     "usernumber": r["usernumber"], "problemas_resueltos": r["problemas_resueltos"],
-                     "points": float(r["points"]) if r["points"] is not None else 0}
-                    for r in ranking_rows
-                ],
-                "cantidad_problemas": cantidad_problemas,
-            }
-            ch.basic_publish(
-                exchange=EXCHANGE, routing_key=ROUTING_KEY,
-                body=json.dumps(payload),
-                properties=pika.BasicProperties(content_type="application/json", delivery_mode=2),
-            )
-            conn.close()
-            print(f"[event] publicado {ROUTING_KEY} con {len(payload['ranking'])} equipos", flush=True)
-            return
-        except Exception as e:
-            print(f"[event] intento {attempt+1} fallido: {e}", flush=True)
-            traceback.print_exc()
-            if attempt < 2:
-                import time as _t; _t.sleep(2)
-    print("[event] no se pudo publicar el evento después de 3 intentos", flush=True)
 
 
 def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoamerica", globos_dir='/app/globosgenerados'):
@@ -273,18 +215,6 @@ def generate_ranking():
         f.write(html)
     _screenshot_html(html, "ranking.jpg")
 
-    try:
-        resp_full = requests.get(f"{BD_SERVICE_URL}/api/ranking/full", timeout=10)
-        if resp_full.status_code == 200 and resp_full.json().get("success"):
-            all_rows = resp_full.json()["rows"]
-        else:
-            all_rows = rows
-    except Exception as e:
-        print(f"[warn] no se pudo obtener ranking completo, usando top-10: {e}", flush=True)
-        all_rows = rows
-
-    publish_ranking_event(all_rows, cantidadProblemas)
-
 
 @app.route('/generate', methods=['POST'])
 def generate():
@@ -295,57 +225,6 @@ def generate():
         import traceback
         traceback.print_exc()
         print(f"[error] /generate fallo: {e}", flush=True)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/ranking-coach.jpg', methods=['POST'])
-def get_coach_image():
-    try:
-        data = request.get_json()
-        team_numbers = set(data.get('teams', []))
-        nombre_coach = data.get('nombre_coach', 'Coach')
-
-        if not team_numbers:
-            return jsonify({"status": "error", "message": "no teams provided"}), 400
-
-        resp_full = requests.get(f"{BD_SERVICE_URL}/api/ranking/full", timeout=10)
-        resp_full.raise_for_status()
-        all_rows = resp_full.json()["rows"]
-
-        rows = []
-        for i, r in enumerate(all_rows, start=1):
-            if r["usernumber"] in team_numbers:
-                rows.append({**r, "pos": i})
-
-        resp_ranking = requests.get(f"{BD_SERVICE_URL}/api/ranking", timeout=10)
-        resp_ranking.raise_for_status()
-        cantidadProblemas = resp_ranking.json()["cantidadProblemas"]
-
-        resp_ac = requests.get(f"{BD_SERVICE_URL}/api/teams/ac", timeout=10)
-        resp_ac.raise_for_status()
-        teamsAC = [
-            (r["usernumber"], r["runproblem"])
-            for r in resp_ac.json()["rows"]
-            if r["usernumber"] in team_numbers
-        ]
-
-        team_list = [r["usernumber"] for r in rows]
-        teamsIndex = {team: i for i, team in enumerate(team_list)}
-        problemasTeam = [[0] * cantidadProblemas for _ in range(len(rows))]
-
-        for team, problem in teamsAC:
-            if team in teamsIndex:
-                i = teamsIndex[team]
-                j = problem - 1
-                if 0 <= j < cantidadProblemas:
-                    problemasTeam[i][j] = 1
-
-        globos_dir = _ensure_globos(cantidadProblemas)
-        html = _ranking_html(rows, cantidadProblemas, problemasTeam, f"Equipos de {nombre_coach}", globos_dir=globos_dir)
-        img_bytes = _screenshot_html(html)
-
-        return send_file(BytesIO(img_bytes), mimetype='image/jpeg')
-    except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

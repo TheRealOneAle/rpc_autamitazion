@@ -3,7 +3,7 @@ import os
 from PIL import Image, ImageDraw, ImageChops
 
 # 🔹 URL del servicio bd
-BD_SERVICE_URL = os.environ.get("BD_SERVICE_URL", "http://bd:3001")
+BD_SERVICE_URL = os.environ.get("BD_SERVICE_URL", "http://boca-scraper:3001")
 
 def generar_globos():
     """Función principal que genera los globos. Retorna (success, message)"""

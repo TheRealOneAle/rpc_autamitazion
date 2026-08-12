@@ -37,7 +37,6 @@ def orchestrate_publication(force=False):
     from .models import PublicationLog
     from .facebook_publisher import publish_photo
     from .description_builder import build_description, _contest_finished
-    from .messaging import publish_ranking_event
 
     log.info("Iniciando ciclo de publicación...")
 
@@ -82,8 +81,6 @@ def orchestrate_publication(force=False):
             competition_data=competition_data,
         )
         log.info(f"Ciclo completado. post_id={post_id}")
-
-        publish_ranking_event(competition_data, post_id)
 
     except Exception as e:
         log.exception(f"Error en ciclo de publicación: {e}")

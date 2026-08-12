@@ -9,8 +9,14 @@ https://docs.djangoproject.com/en/4.2/howto/deployment/wsgi/
 
 import os
 
+from django.conf import settings
 from django.core.wsgi import get_wsgi_application
+
+from config.middleware import PrefixMiddleware
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-application = get_wsgi_application()
+application = PrefixMiddleware(
+    get_wsgi_application(),
+    prefix=getattr(settings, 'FORCE_SCRIPT_NAME', ''),
+)

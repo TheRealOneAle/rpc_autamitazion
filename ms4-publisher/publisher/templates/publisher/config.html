@@ -365,7 +365,7 @@
   </div>
 
   <script>
-    const API = '';
+    const API = '{{ CONTEXT_PATH }}';
     const state = { token: false, contest: false, operator: false };
 
     function getCookie(name) {
@@ -415,7 +415,7 @@
     }
 
     function goToPanel() {
-      if (state.token && state.contest) window.location.href = '/';
+      if (state.token && state.contest) window.location.href = '{{ CONTEXT_PATH }}/';
     }
 
     function updateBocaPreview() {

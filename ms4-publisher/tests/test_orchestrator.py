@@ -29,16 +29,18 @@ def test_success_log_created():
 
     mock_r1 = MagicMock()
     mock_r1.json.return_value = SAMPLE_COMPETITION
+    mock_stats = MagicMock()
+    mock_stats.json.return_value = {"total_teams": 2, "total_submissions": 12, "teams_with_solved": 2}
+    mock_gen = MagicMock()
     mock_r2 = MagicMock()
     mock_r2.content = b"fake_png"
 
     with patch("publisher.orchestrator._get_config", side_effect=mock_config):
-        with patch("publisher.orchestrator._fetch_with_retry", side_effect=[mock_r1, mock_r2]):
-            with patch("publisher.orchestrator.build_description", return_value="texto"):
-                with patch("publisher.orchestrator.publish_photo", return_value="POST_123"):
-                    with patch("publisher.orchestrator.publish_ranking_event"):
-                        with patch("publisher.models.PublicationLog.objects.create") as mock_create:
-                            orchestrate_publication()
+        with patch("publisher.orchestrator._fetch_with_retry", side_effect=[mock_r1, mock_stats, mock_gen, mock_r2]):
+            with patch("publisher.description_builder.build_description", return_value="texto"):
+                with patch("publisher.facebook_publisher.publish_photo", return_value="POST_123"):
+                    with patch("publisher.models.PublicationLog.objects.create") as mock_create:
+                        orchestrate_publication()
 
     mock_create.assert_called_once()
     call_kwargs = mock_create.call_args[1]
@@ -67,13 +69,16 @@ def test_error_log_on_facebook_failure():
 
     mock_r1 = MagicMock()
     mock_r1.json.return_value = SAMPLE_COMPETITION
+    mock_stats = MagicMock()
+    mock_stats.json.return_value = {"total_teams": 2, "total_submissions": 12, "teams_with_solved": 2}
+    mock_gen = MagicMock()
     mock_r2 = MagicMock()
     mock_r2.content = b"fake_png"
 
     with patch("publisher.orchestrator._get_config", side_effect=mock_config):
-        with patch("publisher.orchestrator._fetch_with_retry", side_effect=[mock_r1, mock_r2]):
-            with patch("publisher.orchestrator.build_description", return_value="texto"):
-                with patch("publisher.orchestrator.publish_photo", side_effect=Exception("FB error")):
+        with patch("publisher.orchestrator._fetch_with_retry", side_effect=[mock_r1, mock_stats, mock_gen, mock_r2]):
+            with patch("publisher.description_builder.build_description", return_value="texto"):
+                with patch("publisher.facebook_publisher.publish_photo", side_effect=Exception("FB error")):
                     with patch("publisher.models.PublicationLog.objects.create") as mock_create:
                         orchestrate_publication()
 
