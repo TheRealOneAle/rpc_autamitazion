@@ -81,6 +81,9 @@ services:
       - SECRET_KEY=${MS4_SECRET_KEY:-ms4-dev-secret-key}
       - DEBUG=True
       - ALLOWED_HOSTS=*
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
     command: sh /app/entrypoint.sh
     depends_on:
       - ms4-postgres

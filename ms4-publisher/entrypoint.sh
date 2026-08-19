@@ -12,4 +12,5 @@ SystemConfig.objects.update_or_create(key='ms2_url', defaults={'value': os.envir
 print('URLs sincronizadas:', os.environ['MS1_URL'], '|', os.environ['MS2_URL'])
 PYEOF
 
-exec python manage.py runserver 0.0.0.0:8000
+# --noreload: evita procesos duplicados (padre+hijo) que iniciarían el scheduler dos veces.
+exec python manage.py runserver 0.0.0.0:8000 --noreload

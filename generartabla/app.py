@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_file
+from flask import Flask, jsonify, send_file, request
 import os
 import requests
 from io import BytesIO
@@ -12,6 +12,8 @@ def _to_url(val, default):
 
 BD_SERVICE_URL = _to_url(os.environ.get("BD_SERVICE_URL"), "http://boca-scraper:3001")
 GLOBOS_SERVICE_URL = _to_url(os.environ.get("GLOBOS_SERVICE_URL"), "http://generarglobos:5000")
+
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'outputs')
 
 RANKING_CSS = """
 @page { size: 1100px 2000px; margin: 0; }
@@ -48,6 +50,30 @@ FALLBACK_COLORS = [
     '#006400', '#FF0000', '#32CD32', '#AAAAAA',
     '#FFD700', '#0000FF', '#111111', '#0055CC', '#FF8C00',
 ]
+
+
+def _contest_params():
+    """Devuelve (year, contest) desde query params. Soporta contest=YYYY/NN o year+contest."""
+    year = (request.args.get("year") or "").strip()
+    contest = (request.args.get("contest") or "").strip()
+    if "/" in contest:
+        parts = contest.split("/")
+        year = parts[0].strip()
+        contest = parts[1].strip()
+    return year, contest
+
+
+def _file_key(year, contest):
+    if not year or not contest:
+        return "default"
+    return f"{year}_{str(int(contest)).zfill(2)}"
+
+
+def _bd_url(base, path, year, contest):
+    url = f"{base}{path}"
+    if year and contest:
+        url += f"?contest={year}%2F{str(int(contest)).zfill(2)}"
+    return url
 
 
 def _globo_img_html(globos_dir, letter_idx):
@@ -174,9 +200,12 @@ def _screenshot_html(html_content, output_path=None):
         return buf.getvalue()
 
 
-def generate_ranking():
+def generate_ranking(year, contest):
+    file_key = _file_key(year, contest)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     try:
-        response = requests.get(f"{BD_SERVICE_URL}/api/ranking", timeout=10)
+        response = requests.get(_bd_url(BD_SERVICE_URL, "/api/ranking", year, contest), timeout=10)
         if response.status_code != 200:
             raise Exception(f"Error obteniendo ranking: {response.text}")
         data = response.json()
@@ -188,7 +217,7 @@ def generate_ranking():
         raise Exception(f"Error comunicación con servicio bd: {e}")
 
     try:
-        response = requests.get(f"{BD_SERVICE_URL}/api/teams/ac", timeout=10)
+        response = requests.get(_bd_url(BD_SERVICE_URL, "/api/teams/ac", year, contest), timeout=10)
         if response.status_code != 200:
             raise Exception(f"Error obteniendo AC runs: {response.text}")
         ac_data = response.json()
@@ -211,16 +240,20 @@ def generate_ranking():
 
     globos_dir = _ensure_globos(cantidadProblemas)
     html = _ranking_html(rows, cantidadProblemas, problemasTeam, globos_dir=globos_dir)
-    with open("ranking.html", "w", encoding="utf-8") as f:
+    html_path = os.path.join(OUTPUT_DIR, f"ranking_{file_key}.html")
+    jpg_path = os.path.join(OUTPUT_DIR, f"ranking_{file_key}.jpg")
+    with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
-    _screenshot_html(html, "ranking.jpg")
+    _screenshot_html(html, jpg_path)
+    return file_key, jpg_path
 
 
 @app.route('/generate', methods=['POST'])
 def generate():
+    year, contest = _contest_params()
     try:
-        generate_ranking()
-        return jsonify({"status": "success", "message": "Tabla generated successfully"}), 200
+        file_key, jpg_path = generate_ranking(year, contest)
+        return jsonify({"status": "success", "message": "Tabla generated successfully", "file": f"ranking_{file_key}.jpg", "path": jpg_path}), 200
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -230,8 +263,11 @@ def generate():
 
 @app.route('/ranking.jpg', methods=['GET'])
 def get_image():
+    year, contest = _contest_params()
+    file_key = _file_key(year, contest)
+    path = os.path.join(OUTPUT_DIR, f"ranking_{file_key}.jpg")
     try:
-        return send_file('ranking.jpg', mimetype='image/jpeg')
+        return send_file(path, mimetype='image/jpeg')
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 404
 

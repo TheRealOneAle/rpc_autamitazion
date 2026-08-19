@@ -1,5 +1,6 @@
 import logging
 import requests as http_requests
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.conf import settings
@@ -7,52 +8,89 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import SocialToken, SystemConfig, PublicationLog, CoachSubscription
+from .models import SocialToken, SystemConfig, UserConfig, PublicationLog, CoachSubscription
 from .serializers import (
-    SocialTokenSerializer, SocialTokenWriteSerializer, SystemConfigSerializer,
+    SocialTokenSerializer, SocialTokenWriteSerializer, UserConfigSerializer,
     PublicationLogSerializer, CoachSubscriptionSerializer,
 )
 
 log = logging.getLogger(__name__)
 
+USER_CONFIG_DEFAULTS = {
+    'proceso_activo': 'true',
+    'publication_text': '',
+    'competition_name': '',
+    'boca_year': '',
+    'boca_contest': '',
+    'activated_by': '',
+}
 
-def _config_is_complete():
+
+def _get_user_config(user, key, default=""):
+    try:
+        return UserConfig.objects.get(user=user, key=key).value
+    except UserConfig.DoesNotExist:
+        return default
+
+
+def _ensure_user_defaults(user):
+    """Crea las UserConfig por defecto si no existen (primer acceso)."""
+    for key, value in USER_CONFIG_DEFAULTS.items():
+        UserConfig.objects.get_or_create(user=user, key=key, defaults={'value': value})
+
+
+def _config_is_complete(user):
     required = ['competition_name', 'boca_year', 'boca_contest']
-    saved = set(SystemConfig.objects.filter(key__in=required).values_list('key', flat=True))
+    saved = set(UserConfig.objects.filter(user=user, key__in=required).values_list('key', flat=True))
     if not saved.issuperset(required):
         return False
-    return SocialToken.objects.exists()
+    if any(not _get_user_config(user, k).strip() for k in required):
+        return False
+    return SocialToken.objects.filter(user=user).exists()
+
+
+def _user_contest(user):
+    year = _get_user_config(user, 'boca_year', '').strip()
+    contest = _get_user_config(user, 'boca_contest', '').strip()
+    return year, contest
 
 
 def dashboard(request):
-    if not _config_is_complete():
+    _ensure_user_defaults(request.user)
+    if not _config_is_complete(request.user):
         return redirect('configuracion')
     return render(request, 'publisher/dashboard.html')
 
 
 def configuracion(request):
+    _ensure_user_defaults(request.user)
     return render(request, 'publisher/config.html')
 
 
+@login_required
 def preview_image(request):
-    """Hace proxy de la imagen de ranking generada por MS2."""
-    from .orchestrator import _get_config
-    ms2_url = _get_config("ms2_url") or settings.MS2_URL
+    """Hace proxy de la imagen de ranking generada por MS2 para el contest del usuario."""
+    from .orchestrator import _bd_url
+    ms2_url = _get_user_config(request.user, 'ms2_url') or settings.MS2_URL
+    year, contest = _user_contest(request.user)
     try:
-        r = http_requests.get(f"{ms2_url}/ranking.jpg", timeout=10)
+        url = _bd_url(ms2_url, "/ranking.jpg", year, contest)
+        r = http_requests.get(url, timeout=10)
         r.raise_for_status()
         return HttpResponse(r.content, content_type="image/jpeg")
     except Exception as e:
         return HttpResponse(status=503, reason=str(e))
 
 
+@login_required
 def competition_stats(request):
-    """Proxy de /api/stats de MS1 para que el frontend pueda consultarlo."""
-    from .orchestrator import _get_config
+    """Proxy de /api/stats de MS1 para el contest del usuario."""
+    from .orchestrator import _bd_url
     from django.http import JsonResponse
-    ms1_url = _get_config("ms1_url") or settings.MS1_URL
+    ms1_url = _get_user_config(request.user, 'ms1_url') or settings.MS1_URL
+    year, contest = _user_contest(request.user)
     try:
-        r = http_requests.get(f"{ms1_url}/api/stats", timeout=10)
+        r = http_requests.get(_bd_url(ms1_url, "/api/stats", year, contest), timeout=10)
         r.raise_for_status()
         return JsonResponse(r.json())
     except Exception as e:
@@ -61,43 +99,68 @@ def competition_stats(request):
 
 class StatusView(APIView):
     def get(self, request):
-        from .scheduler import get_scheduler
+        from .scheduler import get_scheduler, get_cutoff
+
+        _ensure_user_defaults(request.user)
         scheduler = get_scheduler()
-        next_run = None
+        cutoff = get_cutoff()
+        next_runs = []
         if scheduler and scheduler.running:
-            job = scheduler.get_job('rpc_hourly_publication')
-            if job and job.next_run_time:
-                next_run = job.next_run_time.isoformat()
+            for job_id, label in [('rpc_hourly_publication', 'cada hora'),
+                                  ('rpc_final_publication', 'final')]:
+                job = scheduler.get_job(job_id)
+                if job and job.next_run_time:
+                    next_runs.append({
+                        "id": job_id,
+                        "label": label,
+                        "next_run": job.next_run_time.isoformat(),
+                    })
 
-        last_log = PublicationLog.objects.first()
-        proceso_activo = SystemConfig.objects.filter(key='proceso_activo').values_list('value', flat=True).first()
-
-        from .description_builder import _contest_finished
-        contest_ended = _contest_finished()
+        last_log = PublicationLog.objects.filter(user=request.user).first()
+        proceso_activo = _get_user_config(request.user, 'proceso_activo', 'true')
 
         return Response({
-            "proceso_activo": proceso_activo == 'true' and not contest_ended,
-            "contest_ended": contest_ended,
+            "proceso_activo": proceso_activo == 'true',
             "scheduler_running": scheduler.running if scheduler else False,
-            "next_run": next_run,
+            "cutoff": cutoff.isoformat(),
+            "next_runs": next_runs,
             "last_log": PublicationLogSerializer(last_log).data if last_log else None,
         })
 
 
 class TriggerView(APIView):
     def post(self, request):
-        from .orchestrator import orchestrate_publication
+        from .scheduler import start_publication_cycle, get_cutoff
+        from .orchestrator import _publish_for_user
         import threading
-        t = threading.Thread(target=orchestrate_publication, kwargs={"force": True}, daemon=True)
+
+        UserConfig.objects.update_or_create(
+            user=request.user, key='proceso_activo',
+            defaults={'value': 'true'}
+        )
+
+        started = start_publication_cycle()
+        t = threading.Thread(
+            target=_publish_for_user,
+            kwargs={"user": request.user, "force": True},
+            daemon=True,
+        )
         t.start()
-        return Response({"detail": "Ciclo iniciado en segundo plano"}, status=status.HTTP_202_ACCEPTED)
+
+        cutoff = get_cutoff()
+        if started:
+            msg = f"Ciclo iniciado. Publicación final programada para las {cutoff.strftime('%H:%M')}"
+        else:
+            msg = f"Scheduler ya corriendo. Publicación final a las {cutoff.strftime('%H:%M')}"
+
+        return Response({"detail": msg, "cutoff": cutoff.isoformat()}, status=status.HTTP_202_ACCEPTED)
 
 
 class LogsView(APIView):
     def get(self, request):
         limit = int(request.query_params.get('limit', 20))
         status_filter = request.query_params.get('status')
-        qs = PublicationLog.objects.all()
+        qs = PublicationLog.objects.filter(user=request.user)
         if status_filter:
             qs = qs.filter(status=status_filter.upper())
         logs = qs[:limit]
@@ -105,25 +168,29 @@ class LogsView(APIView):
 
 
 class ConfigView(APIView):
-    ALLOWED_KEYS = {'ms1_url', 'ms2_url', 'landing_page_url', 'competition_name', 'proceso_activo', 'activated_by'}
+    ALLOWED_KEYS = {'competition_name', 'publication_text', 'proceso_activo', 'activated_by'}
 
     def get(self, request):
-        configs = SystemConfig.objects.filter(key__in=self.ALLOWED_KEYS)
-        return Response(SystemConfigSerializer(configs, many=True).data)
+        _ensure_user_defaults(request.user)
+        configs = UserConfig.objects.filter(user=request.user, key__in=self.ALLOWED_KEYS)
+        return Response(UserConfigSerializer(configs, many=True).data)
 
     def put(self, request):
+        _ensure_user_defaults(request.user)
         updated = []
         for key, value in request.data.items():
             if key not in self.ALLOWED_KEYS:
                 return Response({"detail": f"Clave no permitida: {key}"}, status=status.HTTP_400_BAD_REQUEST)
-            obj, _ = SystemConfig.objects.update_or_create(key=key, defaults={"value": str(value)})
-            updated.append(SystemConfigSerializer(obj).data)
+            obj, _ = UserConfig.objects.update_or_create(
+                user=request.user, key=key, defaults={"value": str(value)}
+            )
+            updated.append(UserConfigSerializer(obj).data)
         return Response(updated)
 
 
 class TokenView(APIView):
     def get(self, request):
-        token = SocialToken.objects.first()
+        token = SocialToken.objects.filter(user=request.user).order_by('-updated_at').first()
         if token:
             return Response({"configured": True, "page_id": token.page_id})
         return Response({"configured": False})
@@ -132,15 +199,16 @@ class TokenView(APIView):
         serializer = SocialTokenWriteSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        SocialToken.objects.all().delete()
-        token = serializer.save()
+        SocialToken.objects.filter(user=request.user).delete()
+        token = serializer.save(user=request.user)
         return Response(SocialTokenSerializer(token).data, status=status.HTTP_201_CREATED)
 
 
 class BocaConfigView(APIView):
     def get(self, request):
-        year    = SystemConfig.objects.filter(key='boca_year').values_list('value', flat=True).first() or '2025'
-        contest = SystemConfig.objects.filter(key='boca_contest').values_list('value', flat=True).first() or '10'
+        _ensure_user_defaults(request.user)
+        year    = _get_user_config(request.user, 'boca_year', '')
+        contest = _get_user_config(request.user, 'boca_contest', '')
         return Response({"year": year, "contest": contest})
 
     def put(self, request):
@@ -149,16 +217,10 @@ class BocaConfigView(APIView):
         if not year or not contest:
             return Response({"error": "year y contest son requeridos"}, status=status.HTTP_400_BAD_REQUEST)
 
-        SystemConfig.objects.update_or_create(key='boca_year',    defaults={'value': year})
-        SystemConfig.objects.update_or_create(key='boca_contest', defaults={'value': contest})
+        UserConfig.objects.update_or_create(user=request.user, key='boca_year',    defaults={'value': year})
+        UserConfig.objects.update_or_create(user=request.user, key='boca_contest', defaults={'value': str(int(contest)).zfill(2)})
 
-        ms1_url = settings.MS1_URL
-        try:
-            http_requests.post(f"{ms1_url}/config", json={"year": year, "contest": contest}, timeout=10)
-        except Exception as e:
-            log.warning(f"No se pudo notificar a boca-scraper: {e}")
-
-        return Response({"year": year, "contest": contest})
+        return Response({"year": year, "contest": str(int(contest)).zfill(2)})
 
 
 class CoachSubscribeView(APIView):
@@ -166,24 +228,24 @@ class CoachSubscribeView(APIView):
         serializer = CoachSubscriptionSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        coach = serializer.save()
+        coach = serializer.save(user=request.user)
         return Response(CoachSubscriptionSerializer(coach).data, status=status.HTTP_201_CREATED)
 
 
 class CoachListView(APIView):
     def get(self, request):
-        coaches = CoachSubscription.objects.filter(active=True)
+        coaches = CoachSubscription.objects.filter(active=True, user=request.user)
         return Response(CoachSubscriptionSerializer(coaches, many=True).data)
 
 
 class CoachStatsView(APIView):
     def get(self, request, coach_id):
         try:
-            coach = CoachSubscription.objects.get(id=coach_id, active=True)
+            coach = CoachSubscription.objects.get(id=coach_id, active=True, user=request.user)
         except CoachSubscription.DoesNotExist:
             return Response({"detail": "Coach no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
-        last_log = PublicationLog.objects.filter(status='SUCCESS').first()
+        last_log = PublicationLog.objects.filter(user=request.user, status='SUCCESS').first()
         teams_data = []
         if last_log and last_log.competition_data:
             all_teams = last_log.competition_data.get("teams", [])

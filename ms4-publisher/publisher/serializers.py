@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import SocialToken, SystemConfig, PublicationLog, CoachSubscription
+from .models import SocialToken, SystemConfig, UserConfig, PublicationLog, CoachSubscription
 
 
 class SocialTokenSerializer(serializers.ModelSerializer):
@@ -17,6 +17,12 @@ class SocialTokenWriteSerializer(serializers.ModelSerializer):
 class SystemConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = SystemConfig
+        fields = ['key', 'value', 'updated_at']
+
+
+class UserConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserConfig
         fields = ['key', 'value', 'updated_at']
 
 

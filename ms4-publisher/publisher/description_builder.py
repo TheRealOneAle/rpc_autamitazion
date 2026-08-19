@@ -1,8 +1,12 @@
-def _get_config(key, default=""):
-    from .models import SystemConfig
+from .models import UserConfig
+
+
+def _get_config(user, key, default=""):
+    if user is None:
+        return default
     try:
-        return SystemConfig.objects.get(key=key).value
-    except SystemConfig.DoesNotExist:
+        return UserConfig.objects.get(user=user, key=key).value
+    except UserConfig.DoesNotExist:
         return default
 
 
@@ -12,21 +16,26 @@ _COL_OFFSET = -5  # UTC-5
 
 
 def _contest_finished() -> bool:
-    return False  # deshabilitado temporalmente para pruebas
     from datetime import datetime, timezone, timedelta
     now_col = datetime.now(timezone(timedelta(hours=_COL_OFFSET)))
     end = now_col.replace(hour=_CONTEST_END_HOUR, minute=_CONTEST_END_MINUTE, second=0, microsecond=0)
     return now_col >= end
 
 
-def build_description(competition_data: dict) -> str:
-    competition_name  = _get_config("competition_name", "Competencia RPC 2026")
+def build_description(user, competition_data: dict, final: bool = False) -> str:
+    # Texto libre del usuario: si no está vacío, es lo que se publica tal cual.
+    saved_text = _get_config(user, "publication_text", "").strip()
+    if saved_text:
+        return saved_text
+
+    # Fallback: texto generado automáticamente.
+    competition_name  = _get_config(user, "competition_name", "Competencia RPC 2026")
     total_submissions = competition_data.get("total_submissions", 0)
     teams_with_solved = competition_data.get("teams_with_solved", 0)
     total_teams       = competition_data.get("total_teams", 0)
-    activated_by      = _get_config("activated_by", "")
+    activated_by      = _get_config(user, "activated_by", "")
 
-    if _contest_finished():
+    if final or _contest_finished():
         intro = f"Asi quedo la parte alta del tablero FINAL de la {competition_name}."
     else:
         intro = f"Asi va el tablero hasta ahora de la {competition_name}."

@@ -67,6 +67,7 @@
 
     h1 { font-size: 1.4rem; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
     .subtitle { font-size: 0.85rem; color: var(--text-sub); }
+    .topbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .config-btn {
       display: inline-flex;
@@ -122,17 +123,36 @@
     .status-label { font-size: 0.9rem; }
     .next-run { font-size: 0.8rem; color: var(--text-sub); margin-top: 4px; }
 
-    /* PUBLISH BUTTON */
-    #btn-publish {
-      width: 100%; margin-top: 16px; padding: 12px;
-      background: var(--primary); color: #fff; border: none;
+    /* BUTTONS */
+    button.action {
+      width: 100%; margin-top: 12px; padding: 12px;
+      color: #fff; border: none;
       border-radius: 8px; font-size: 1rem; font-weight: 600;
       cursor: pointer; transition: background .15s;
     }
+    button.action:disabled { opacity: .55; cursor: not-allowed; }
+    #btn-publish { background: var(--primary); }
     #btn-publish:hover:not(:disabled) { background: var(--primary-hover); }
-    #btn-publish:disabled { background: var(--primary-dis); cursor: not-allowed; }
+    #btn-stop { background: var(--red); }
+    #btn-stop:hover:not(:disabled) { background: #b91c1c; }
+    #btn-stop.resume { background: var(--green); }
+    #btn-stop.resume:hover:not(:disabled) { background: #15803d; }
     #publish-msg { margin-top: 10px; font-size: 0.85rem; text-align: center; min-height: 20px; color: var(--green); }
     #publish-msg.err { color: var(--red); }
+
+    /* TEXT EDITOR */
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+    .field label { font-size: 0.78rem; font-weight: 600; color: var(--text-sub); }
+    #inp-text {
+      width: 100%; padding: 10px 12px;
+      background: var(--card-bg); border: 1px solid var(--input-border);
+      border-radius: 8px; font-size: 0.85rem; font-family: inherit; line-height: 1.5;
+      color: var(--text); resize: vertical; min-height: 140px;
+    }
+    #inp-text:focus { outline: none; border-color: var(--primary); }
+    .save-indicator { font-size: 0.75rem; color: var(--text-hint); min-height: 16px; }
+    .save-indicator.ok { color: var(--green); }
+    .save-indicator.err { color: var(--red); }
 
     /* FACEBOOK PREVIEW */
     .fb-card { border: 1px solid var(--fb-border); border-radius: 10px; overflow: hidden; font-size: 0.9rem; }
@@ -172,13 +192,21 @@
       <h1>RPC Social Stream</h1>
       <p class="subtitle">Panel de publicaciones en Facebook</p>
     </div>
-    <a href="{{ CONTEXT_PATH }}/configuracion/" class="config-btn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-      Configuración
-    </a>
+    <div class="topbar-actions">
+      <a href="{{ CONTEXT_PATH }}/configuracion/" class="config-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Configuración
+      </a>
+      <a href="{{ CONTEXT_PATH }}/logout/" class="config-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Cerrar sesión
+      </a>
+    </div>
   </div>
 
   <div class="grid">
@@ -192,8 +220,21 @@
           <span class="status-label" id="label-proceso">Cargando...</span>
         </div>
         <p class="next-run" id="next-run"></p>
-        <button id="btn-publish" disabled>Publicar ahora</button>
+        <button class="action" id="btn-publish" disabled>Publicar ahora</button>
+        <button class="action" id="btn-stop">Detener publicaciones</button>
         <p id="publish-msg"></p>
+      </div>
+
+      <div class="card">
+        <h2>Texto de la publicación</h2>
+        <p class="next-run" style="margin-bottom:10px;">
+          Se guarda automáticamente mientras escribes. Si está vacío, se publica el texto generado automáticamente.
+        </p>
+        <div class="field">
+          <label for="inp-text">Mensaje (lo que se publica con la tabla)</label>
+          <textarea id="inp-text" placeholder="Escribe aquí el texto de la publicación..."></textarea>
+          <span class="save-indicator" id="save-indicator"></span>
+        </div>
       </div>
     </div>
 
@@ -238,13 +279,21 @@
 
   <script>
     const API = '{{ CONTEXT_PATH }}';
+    const state = { config: {}, stats: null, savedText: '', hasSavedText: false };
+
+    function getCookie(name) {
+      const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+      return v ? v[2] : '';
+    }
 
     function fmt(iso) {
       if (!iso) return '—';
       return new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
     }
 
-    function buildDescription(data, config) {
+    function autoDescription() {
+      const config = state.config;
+      const data = state.stats || { total_teams: '?', total_submissions: '?', teams_with_solved: '?' };
       const competitionName  = config.competition_name  || 'Competencia RPC 2026';
       const totalSubmissions = data.total_submissions   ?? '?';
       const teamsWithSolved  = data.teams_with_solved   ?? '?';
@@ -269,45 +318,108 @@
       );
     }
 
+    function currentText() {
+      const el = document.getElementById('inp-text');
+      return (el && el.value.trim()) ? el.value : '';
+    }
+
+    function refreshPreviewText() {
+      const text = currentText();
+      document.getElementById('fb-body').textContent = text ? text : autoDescription();
+    }
+
+    let saveTimer = null;
+    async function saveText() {
+      const el = document.getElementById('inp-text');
+      const indicator = document.getElementById('save-indicator');
+      const value = el.value;
+      indicator.className = 'save-indicator';
+      indicator.textContent = 'Guardando...';
+      try {
+        const r = await fetch(`${API}/api/config/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ publication_text: value }),
+        });
+        if (r.ok) {
+          state.savedText = value;
+          state.hasSavedText = value.trim().length > 0;
+          indicator.className = 'save-indicator ok';
+          indicator.textContent = value.trim() ? 'Guardado' : 'Texto vacío — se publica el texto automático';
+        } else {
+          indicator.className = 'save-indicator err';
+          indicator.textContent = 'Error al guardar';
+        }
+      } catch(_) {
+        indicator.className = 'save-indicator err';
+        indicator.textContent = 'Error de conexión';
+      }
+    }
+
+    function onTextInput() {
+      refreshPreviewText();
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveText, 800);
+    }
+
     async function loadStatus() {
       try {
         const r = await fetch(`${API}/api/status/`);
         const d = await r.json();
-        document.getElementById('dot-proceso').className    = 'dot ' + (d.proceso_activo ? 'on' : 'off');
-        document.getElementById('label-proceso').textContent  = d.contest_ended
-          ? 'Contest finalizado (18:05)'
-          : d.proceso_activo ? 'Publicaciones activas' : 'Publicaciones inactivas';
-        document.getElementById('next-run').textContent = d.contest_ended
-          ? 'No habrá más publicaciones automáticas hoy'
-          : d.next_run ? `Próxima publicación automática: ${fmt(d.next_run)}` : '';
-        document.getElementById('btn-publish').disabled = d.contest_ended;
+        document.getElementById('dot-proceso').className = 'dot ' + (d.proceso_activo ? 'on' : 'off');
+        document.getElementById('label-proceso').textContent = d.proceso_activo
+          ? 'Publicaciones activas'
+          : 'Publicaciones detenidas';
+
+        const btnStop = document.getElementById('btn-stop');
+        btnStop.classList.toggle('resume', !d.proceso_activo);
+        btnStop.textContent = d.proceso_activo ? 'Detener publicaciones' : 'Reanudar publicaciones';
+
+        const nextEl = document.getElementById('next-run');
+        if (d.scheduler_running) {
+          const parts = (d.next_runs || []).map(x => `${x.label}: ${fmt(x.next_run)}`);
+          parts.push(`Cierre: ${fmt(d.cutoff)}`);
+          nextEl.textContent = parts.join(' · ');
+        } else {
+          nextEl.textContent = d.cutoff
+            ? `Ciclo detenido. Cierre programado: ${fmt(d.cutoff)}`
+            : '';
+        }
+        document.getElementById('btn-publish').disabled = false;
       } catch(e) {
         document.getElementById('label-proceso').textContent = 'Sin conexión con el servicio';
       }
     }
 
-    async function loadPreview() {
-      const configMap = {};
+    async function loadConfig() {
       try {
         const r = await fetch(`${API}/api/config/`);
         const cfgs = await r.json();
-        cfgs.forEach(c => { configMap[c.key] = c.value; });
-        document.getElementById('fb-page-name').textContent = configMap.competition_name || 'RPC Competencia';
+        cfgs.forEach(c => { state.config[c.key] = c.value; });
+        document.getElementById('fb-page-name').textContent = state.config.competition_name || 'RPC Competencia';
+        const el = document.getElementById('inp-text');
+        if (document.activeElement !== el) {
+          el.value = state.config.publication_text || '';
+          state.savedText = state.config.publication_text || '';
+          state.hasSavedText = !!(state.config.publication_text || '').trim();
+          refreshPreviewText();
+        }
       } catch(_) {}
+    }
 
+    async function loadPreview() {
       const note = document.getElementById('preview-note');
       try {
         const r = await fetch(`${API}/api/competition-stats/`);
         const stats = await r.json();
         if (stats.error) throw new Error(stats.error);
+        state.stats = stats;
         note.textContent = 'Vista previa con datos actuales de la competencia.';
-        document.getElementById('fb-body').textContent = buildDescription(stats, configMap);
       } catch(e) {
+        state.stats = null;
         note.textContent = 'No se pudieron obtener datos. Mostrando ejemplo.';
-        document.getElementById('fb-body').textContent = buildDescription(
-          { total_teams: 173, total_submissions: 1335, teams_with_solved: 153 }, configMap
-        );
       }
+      refreshPreviewText();
     }
 
     document.getElementById('btn-publish').addEventListener('click', async () => {
@@ -318,7 +430,10 @@
       msg.className = '';
       msg.textContent = '';
       try {
-        const r = await fetch(`${API}/api/trigger/`, { method: 'POST' });
+        const r = await fetch(`${API}/api/trigger/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        });
         const d = await r.json();
         if (r.ok) {
           msg.textContent = d.detail || 'Ciclo iniciado en segundo plano';
@@ -336,11 +451,41 @@
       }
     });
 
+    document.getElementById('btn-stop').addEventListener('click', async () => {
+      const btnStop = document.getElementById('btn-stop');
+      const msg = document.getElementById('publish-msg');
+      const resuming = btnStop.classList.contains('resume');
+      const newValue = resuming ? 'true' : 'false';
+      btnStop.disabled = true;
+      try {
+        const r = await fetch(`${API}/api/config/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ proceso_activo: newValue }),
+        });
+        if (r.ok) {
+          msg.className = '';
+          msg.textContent = resuming ? 'Publicaciones reanudadas' : 'Publicaciones detenidas';
+        } else {
+          msg.className = 'err';
+          msg.textContent = 'Error al cambiar el estado';
+        }
+      } catch(_) {
+        msg.className = 'err';
+        msg.textContent = 'Error de conexión';
+      } finally {
+        btnStop.disabled = false;
+        loadStatus();
+      }
+    });
+
     function loadRankingImage() {
       document.getElementById('ranking-img').src = `${API}/api/preview-image/?t=${Date.now()}`;
     }
 
     async function init() {
+      await loadConfig();
+      document.getElementById('inp-text').addEventListener('input', onTextInput);
       loadStatus();
       loadPreview();
       loadRankingImage();

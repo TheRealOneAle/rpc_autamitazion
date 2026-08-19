@@ -18,6 +18,43 @@ CACHE_TTL = int(os.environ.get("CACHE_TTL", "60"))
 # URL mutable en tiempo de ejecución (cambia con POST /config)
 _config = {"base": _BASE_DEFAULT}
 
+# Caché por contest: {contest_key: {"teams":..., "colors":..., "ts":...}}
+_caches = {}
+_lock = threading.Lock()
+
+
+def _contest_key(base):
+    parts = base.rstrip("/").split("/")
+    return f"{parts[-2]}/{parts[-1]}"
+
+
+def _parse_contest_params():
+    """Extrae (year, contest) desde query params. Soporta contest=YYYY/NN o year+contest."""
+    year = (request.args.get("year") or "").strip()
+    contest = (request.args.get("contest") or "").strip()
+    if "/" in contest:
+        parts = contest.split("/")
+        year = parts[0].strip()
+        contest = parts[1].strip()
+    return year, contest
+
+
+def _contest_base(year, contest):
+    if not year or not contest:
+        return _config["base"]
+    base_root = _BASE_DEFAULT.split("/contests/")[0]
+    contest_padded = str(int(contest)).zfill(2)
+    return f"{base_root}/contests/{year}/{contest_padded}"
+
+
+def _base_from_request():
+    year, contest = _parse_contest_params()
+    if year and contest:
+        return _contest_base(year, contest), f"{year}/{str(int(contest)).zfill(2)}"
+    base = _config["base"]
+    return base, _contest_key(base)
+
+
 # Colores ICPC estándar por defecto cuando Boca no los expone en el HTML
 DEFAULT_COLORS = [
     "#FF0000", "#0000FF", "#00CC00", "#FFFF00", "#FF8000",
@@ -25,16 +62,12 @@ DEFAULT_COLORS = [
     "#000080", "#808000", "#008080", "#800000",
 ]
 
-_cache = {"teams": None, "colors": None, "ts": 0}
-_lock = threading.Lock()
-
 
 def _hash(s):
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def _login_and_fetch():
-    base = _config["base"]
+def _login_and_fetch(base):
     session = requests.Session()
     session.get(f"{base}/index.php", timeout=15)
     sid = session.cookies.get("PHPSESSID", "")
@@ -151,36 +184,35 @@ def _parse(html):
     return teams, color_list
 
 
-def _get_data():
+def _get_data(base):
+    key = _contest_key(base)
     now = time.time()
-    with _lock:
-        cached_teams = _cache["teams"]
-        cached_colors = _cache["colors"]
-        cached_ts = _cache["ts"]
 
-    if cached_teams is not None and now - cached_ts <= CACHE_TTL:
-        return cached_teams, cached_colors
+    with _lock:
+        cache = _caches.get(key)
+        if cache is not None and now - cache["ts"] <= CACHE_TTL:
+            return cache["teams"], cache["colors"]
 
     try:
-        html = _login_and_fetch()
+        html = _login_and_fetch(base)
         teams, color_list = _parse(html)
         with _lock:
-            _cache["teams"] = teams
-            _cache["colors"] = color_list
-            _cache["ts"] = time.time()
+            _caches[key] = {"teams": teams, "colors": color_list, "ts": time.time()}
         return teams, color_list
     except Exception as e:
-        print(f"[scraper] error al obtener datos de Boca: {e}", flush=True)
-        if cached_teams is None:
+        print(f"[scraper] error al obtener datos de {key}: {e}", flush=True)
+        cache = _caches.get(key)
+        if cache is None:
             raise
-        print("[scraper] usando datos en caché (posiblemente desactualizados)", flush=True)
-        return cached_teams, cached_colors
+        print(f"[scraper] usando datos en caché de {key} (posiblemente desactualizados)", flush=True)
+        return cache["teams"], cache["colors"]
 
 
 @app.route("/api/teams", methods=["GET"])
 def get_teams():
     try:
-        teams, _ = _get_data()
+        base, _ = _base_from_request()
+        teams, _ = _get_data(base)
         rows = [
             {"usernumber": t["usernumber"], "userfullname": t["userfullname"], "country": t["country"]}
             for t in teams
@@ -193,7 +225,8 @@ def get_teams():
 @app.route("/api/problems", methods=["GET"])
 def get_problems():
     try:
-        _, colors = _get_data()
+        base, _ = _base_from_request()
+        _, colors = _get_data(base)
         rows = [{"problemnumber": n, "problemcolor": c} for n, c in colors]
         return jsonify({"success": True, "rows": rows})
     except Exception as e:
@@ -203,7 +236,8 @@ def get_problems():
 @app.route("/api/problems/count", methods=["GET"])
 def get_problems_count():
     try:
-        _, colors = _get_data()
+        base, _ = _base_from_request()
+        _, colors = _get_data(base)
         return jsonify({"success": True, "count": len(colors)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -212,7 +246,8 @@ def get_problems_count():
 @app.route("/api/teams/ac", methods=["GET"])
 def get_teams_ac():
     try:
-        teams, _ = _get_data()
+        base, _ = _base_from_request()
+        teams, _ = _get_data(base)
         rows = [
             {"usernumber": t["usernumber"], "runproblem": prob}
             for t in teams
@@ -226,7 +261,8 @@ def get_teams_ac():
 @app.route("/api/ranking", methods=["GET"])
 def get_ranking():
     try:
-        teams, colors = _get_data()
+        base, key = _base_from_request()
+        teams, colors = _get_data(base)
         rows = [
             {
                 "pos": t["pos"],
@@ -238,7 +274,7 @@ def get_ranking():
             }
             for t in teams[:10]
         ]
-        return jsonify({"success": True, "rows": rows, "cantidadProblemas": len(colors)})
+        return jsonify({"success": True, "rows": rows, "cantidadProblemas": len(colors), "contest": key})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -246,7 +282,8 @@ def get_ranking():
 @app.route("/api/ranking/full", methods=["GET"])
 def get_ranking_full():
     try:
-        teams, _ = _get_data()
+        base, _ = _base_from_request()
+        teams, _ = _get_data(base)
         rows = [
             {
                 "pos": t["pos"],
@@ -266,7 +303,8 @@ def get_ranking_full():
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
     try:
-        teams, _ = _get_data()
+        base, _ = _base_from_request()
+        teams, _ = _get_data(base)
         total_teams = len(teams)
         teams_with_solved = sum(1 for t in teams if t["problemas_resueltos"] > 0)
         total_submissions = sum(len(t["solved_problems"]) for t in teams)
@@ -308,11 +346,9 @@ def set_config():
     _config["base"] = new_base
 
     with _lock:
-        _cache["teams"] = None
-        _cache["colors"] = None
-        _cache["ts"] = 0
+        _caches.clear()
 
-    print(f"[config] URL actualizada a {new_base}", flush=True)
+    print(f"[config] URL por defecto actualizada a {new_base}", flush=True)
     return jsonify({"url": new_base, "year": year, "contest": contest})
 
 
@@ -322,7 +358,7 @@ def _warmup():
     _t.sleep(2)  # espera mínima a que Flask esté listo
     try:
         print("[warmup] precalentando caché...", flush=True)
-        _get_data()
+        _get_data(_config["base"])
         print("[warmup] caché listo", flush=True)
     except Exception as e:
         print(f"[warmup] falló (se reintentará en el primer request): {e}", flush=True)

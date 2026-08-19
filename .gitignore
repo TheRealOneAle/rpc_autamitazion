@@ -205,3 +205,5 @@ Thumbs.db
 stitch_registro_de_entrenadores/
 docs/
 .claude/
+# Artefactos generados por generartabla
+generartabla/outputs/

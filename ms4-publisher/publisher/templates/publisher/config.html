@@ -269,12 +269,17 @@
       <h1>Configuración</h1>
       <p>Completa los datos para activar el publicador</p>
     </div>
-    <button class="go-btn" id="btn-go" data-disabled onclick="goToPanel()">
-      Ir al publicador
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M9 18l6-6-6-6"/>
-      </svg>
-    </button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <a href="{{ CONTEXT_PATH }}/logout/" class="go-btn" style="background:transparent;border:1px solid var(--border);color:var(--text);">
+        Cerrar sesión
+      </a>
+      <button class="go-btn" id="btn-go" data-disabled onclick="goToPanel()">
+        Ir al publicador
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
   <div id="go-hint" class="go-hint">Completa los pasos requeridos para continuar</div>
@@ -307,7 +312,9 @@
     <div class="card">
       <h2>Token de Facebook</h2>
       <p class="token-help">
-        Necesitas un <strong>Page Access Token</strong> con el permiso
+        Cada persona guarda <strong>su propio token y página</strong>. No tiene que ser de
+        la cuenta con la que iniciaste sesión: pega el <strong>Page Access Token</strong>
+        de la página a la que quieras publicar, con el permiso
         <code>pages_manage_posts</code>. Obtenlo en el
         <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a>:
         selecciona tu app, luego tu página y genera el token.
@@ -328,6 +335,10 @@
     <!-- DATOS DEL CONTEST -->
     <div class="card">
       <h2>Datos del contest</h2>
+      <p class="token-help">
+        El contest se elige <strong>manualmente</strong>. Cada persona configura el suyo
+        (año y número). Es el contest que se usará para generar la tabla de este panel.
+      </p>
       <div class="field">
         <label for="inp-competition-name">Nombre de la competencia</label>
         <input type="text" id="inp-competition-name" placeholder="Ej: Competencia 02 RPC 2026">
@@ -480,7 +491,7 @@
       try {
         const r = await fetch(`${API}/api/token/`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
           body: JSON.stringify({ page_id: pageId, access_token: token }),
         });
         const d = await r.json();

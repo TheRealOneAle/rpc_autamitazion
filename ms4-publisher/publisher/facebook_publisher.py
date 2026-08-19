@@ -14,17 +14,21 @@ class FacebookRateLimitError(Exception):
     pass
 
 
-def _get_token_and_page():
+def _get_token_and_page(user=None):
     from .models import SocialToken
-    token_obj = SocialToken.objects.order_by('-updated_at').first()
+    if user is not None:
+        token_obj = SocialToken.objects.filter(user=user).order_by('-updated_at').first()
+    else:
+        token_obj = SocialToken.objects.order_by('-updated_at').first()
     if not token_obj:
         raise ValueError("No hay token de Facebook en la base de datos")
     return token_obj.access_token, token_obj.page_id
 
 
-def publish_photo(image_bytes: bytes, description: str) -> str:
-    """Publica una imagen en la Fan Page de Facebook. Retorna el post_id."""
-    access_token, page_id = _get_token_and_page()
+def publish_photo(image_bytes: bytes, description: str, access_token: str = None, page_id: str = None) -> str:
+    """Publica una imagen en una Fan Page de Facebook. Retorna el post_id."""
+    if access_token is None or page_id is None:
+        access_token, page_id = _get_token_and_page()
 
     url = f"{GRAPH_API_BASE}/{page_id}/photos"
     try:
