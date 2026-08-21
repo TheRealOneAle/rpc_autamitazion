@@ -3,12 +3,16 @@ from .views import (
     preview_image, competition_stats,
     StatusView, TriggerView, LogsView, ConfigView, TokenView,
     BocaConfigView, CoachSubscribeView, CoachListView, CoachStatsView,
+    ScheduleStartView, WhitelistView, WhitelistDeleteView,
 )
 
 urlpatterns = [
     path('preview-image/', preview_image),
     path('competition-stats/', competition_stats),
     path('status/', StatusView.as_view()),
+    path('schedule/', ScheduleStartView.as_view()),
+    path('whitelist/', WhitelistView.as_view()),
+    path('whitelist/<int:email_id>/', WhitelistDeleteView.as_view()),
     path('trigger/', TriggerView.as_view()),
     path('logs/', LogsView.as_view()),
     path('config/', ConfigView.as_view()),

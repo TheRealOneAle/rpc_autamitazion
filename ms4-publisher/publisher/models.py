@@ -71,3 +71,21 @@ class CoachSubscription(models.Model):
 
     class Meta:
         db_table = 'coach_subscription'
+
+
+class AllowedEmail(models.Model):
+    """Lista de correos autorizados para autenticarse en el publicador."""
+    email = models.EmailField(unique=True)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='added_allowed_emails',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'allowed_email'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.email

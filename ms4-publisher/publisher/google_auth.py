@@ -122,8 +122,15 @@ def google_callback(request):
     if not google_id:
         return render(request, 'publisher/login.html', {'error': 'Google no retornó un id de usuario'})
 
-    email = me.get('email') or ''
+    email = (me.get('email') or '').strip().lower()
     name = me.get('name') or google_id
+
+    # 🔒 Validación de Whitelist de Correos
+    if not _is_email_authorized(email):
+        log.warning(f"Intento de acceso rechazado por whitelist para el correo: {email}")
+        return render(request, 'publisher/login.html', {
+            'error': f'Acceso denegado: El correo ({email}) no está en la lista de usuarios autorizados. Contacta al administrador.'
+        })
 
     user, created = User.objects.get_or_create(
         username=f"google_{google_id}",
@@ -140,9 +147,43 @@ def google_callback(request):
 
     if created:
         _seed_user_config(user)
-        log.info(f"Nuevo usuario registrado: {user.username}")
+        log.info(f"Nuevo usuario registrado: {user.username} ({email})")
 
     return redirect('dashboard')
+
+
+def _is_email_authorized(email: str) -> bool:
+    """Verifica si un correo está autorizado mediante variable de entorno o base de datos."""
+    if not email:
+        return False
+    
+    email_clean = email.strip().lower()
+    
+    # 1. Verificar lista en variable de entorno ALLOWED_EMAILS
+    allowed_env = getattr(settings, 'ALLOWED_EMAILS', [])
+    for allowed in allowed_env:
+        allowed = allowed.strip().lower()
+        if not allowed:
+            continue
+        if allowed.startswith('@') and email_clean.endswith(allowed):
+            return True
+        if email_clean == allowed:
+            return True
+
+    # 2. Verificar tabla AllowedEmail en base de datos
+    from .models import AllowedEmail
+    try:
+        has_any_db_rule = AllowedEmail.objects.filter(is_active=True).exists()
+        # Si no hay reglas ni en ENV ni en BD, permitir el primer acceso y registrarlo
+        if not allowed_env and not has_any_db_rule:
+            AllowedEmail.objects.get_or_create(email=email_clean, defaults={'is_active': True})
+            return True
+
+        return AllowedEmail.objects.filter(email__iexact=email_clean, is_active=True).exists()
+    except Exception as e:
+        log.exception(f"Error verificando whitelist en BD: {e}")
+        # Si hay error con la BD pero no hay env vars, por seguridad permitir si env está vacío
+        return len(allowed_env) == 0
 
 
 def logout_view(request):

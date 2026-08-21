@@ -36,3 +36,13 @@ class CoachSubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = CoachSubscription
         fields = ['id', 'name', 'email', 'teams', 'active', 'created_at']
+
+
+class AllowedEmailSerializer(serializers.ModelSerializer):
+    added_by_username = serializers.ReadOnlyField(source='added_by.username')
+
+    class Meta:
+        from .models import AllowedEmail
+        model = AllowedEmail
+        fields = ['id', 'email', 'is_active', 'created_at', 'added_by_username']
+

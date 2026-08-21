@@ -99,33 +99,127 @@ def competition_stats(request):
 
 class StatusView(APIView):
     def get(self, request):
-        from .scheduler import get_scheduler, get_cutoff
+        from .scheduler import get_schedule_info
 
         _ensure_user_defaults(request.user)
-        scheduler = get_scheduler()
-        cutoff = get_cutoff()
-        next_runs = []
-        if scheduler and scheduler.running:
-            for job_id, label in [('rpc_hourly_publication', 'cada hora'),
-                                  ('rpc_final_publication', 'final')]:
-                job = scheduler.get_job(job_id)
-                if job and job.next_run_time:
-                    next_runs.append({
-                        "id": job_id,
-                        "label": label,
-                        "next_run": job.next_run_time.isoformat(),
-                    })
+        schedule_info = get_schedule_info()
 
         last_log = PublicationLog.objects.filter(user=request.user).first()
         proceso_activo = _get_user_config(request.user, 'proceso_activo', 'true')
 
         return Response({
             "proceso_activo": proceso_activo == 'true',
-            "scheduler_running": scheduler.running if scheduler else False,
-            "cutoff": cutoff.isoformat(),
-            "next_runs": next_runs,
+            "scheduler_running": schedule_info.get("scheduler_running", False),
+            "is_scheduled": schedule_info.get("is_scheduled", False),
+            "scheduled_start": schedule_info.get("scheduled_start"),
+            "cutoff": schedule_info.get("cutoff"),
+            "next_runs": schedule_info.get("next_runs", []),
             "last_log": PublicationLogSerializer(last_log).data if last_log else None,
         })
+
+
+class ScheduleStartView(APIView):
+    """Permite fijar la hora exacta de inicio de la publicación del scoreboard."""
+    def get(self, request):
+        from .scheduler import get_schedule_info
+        return Response(get_schedule_info())
+
+    def post(self, request):
+        from .scheduler import schedule_publication, BOGOTA_TZ
+        from datetime import datetime, time
+
+        start_str = str(request.data.get('start_time', '')).strip()
+        end_str = str(request.data.get('end_time', '')).strip()
+
+        if not start_str:
+            return Response({"error": "start_time es requerido (formato YYYY-MM-DDTHH:MM o HH:MM)"}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = datetime.now(BOGOTA_TZ)
+
+        try:
+            # Soportar formato ISO completo "2026-08-20T14:30" o solo hora "14:30"
+            if 'T' in start_str or '-' in start_str:
+                start_dt = datetime.fromisoformat(start_str)
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=BOGOTA_TZ)
+            else:
+                parts = start_str.split(':')
+                h, m = int(parts[0]), int(parts[1])
+                start_dt = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                if start_dt < now:
+                    from datetime import timedelta
+                    start_dt += timedelta(days=1)
+        except Exception as e:
+            return Response({"error": f"Formato de start_time inválido: {e}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        end_dt = None
+        if end_str:
+            try:
+                if 'T' in end_str or '-' in end_str:
+                    end_dt = datetime.fromisoformat(end_str)
+                    if end_dt.tzinfo is None:
+                        end_dt = end_dt.replace(tzinfo=BOGOTA_TZ)
+                else:
+                    parts = end_str.split(':')
+                    h, m = int(parts[0]), int(parts[1])
+                    end_dt = start_dt.replace(hour=h, minute=m, second=0, microsecond=0)
+            except Exception as e:
+                log.warning(f"Error parseando end_time: {e}")
+
+        # Guardar en UserConfig
+        UserConfig.objects.update_or_create(user=request.user, key='proceso_activo', defaults={'value': 'true'})
+        UserConfig.objects.update_or_create(user=request.user, key='scheduled_start_time', defaults={'value': start_dt.isoformat()})
+
+        result = schedule_publication(start_datetime=start_dt, end_datetime=end_dt)
+        return Response(result, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        from .scheduler import cancel_scheduled_start
+        cancel_scheduled_start()
+        UserConfig.objects.update_or_create(user=request.user, key='scheduled_start_time', defaults={'value': ''})
+        return Response({"message": "Inicio programado cancelado exitosamente"})
+
+
+class WhitelistView(APIView):
+    """Gestión de correos autorizados para iniciar sesión con Google."""
+    def get(self, request):
+        from .models import AllowedEmail
+        from .serializers import AllowedEmailSerializer
+        allowed_db = AllowedEmail.objects.all()
+        allowed_env = getattr(settings, 'ALLOWED_EMAILS', [])
+        return Response({
+            "database_emails": AllowedEmailSerializer(allowed_db, many=True).data,
+            "environment_emails": allowed_env,
+        })
+
+    def post(self, request):
+        from .models import AllowedEmail
+        from .serializers import AllowedEmailSerializer
+        email = str(request.data.get('email', '')).strip().lower()
+        if not email or '@' not in email:
+            return Response({"error": "Correo electrónico no válido"}, status=status.HTTP_400_BAD_REQUEST)
+
+        obj, created = AllowedEmail.objects.get_or_create(
+            email=email,
+            defaults={'added_by': request.user, 'is_active': True},
+        )
+        if not created and not obj.is_active:
+            obj.is_active = True
+            obj.save()
+
+        return Response(AllowedEmailSerializer(obj).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class WhitelistDeleteView(APIView):
+    """Elimina o desactiva un correo de la whitelist."""
+    def delete(self, request, email_id):
+        from .models import AllowedEmail
+        try:
+            item = AllowedEmail.objects.get(id=email_id)
+            item.delete()
+            return Response({"message": "Correo eliminado de la lista autorizada"})
+        except AllowedEmail.DoesNotExist:
+            return Response({"error": "Correo no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class TriggerView(APIView):
@@ -168,7 +262,7 @@ class LogsView(APIView):
 
 
 class ConfigView(APIView):
-    ALLOWED_KEYS = {'competition_name', 'publication_text', 'proceso_activo', 'activated_by'}
+    ALLOWED_KEYS = {'competition_name', 'publication_text', 'proceso_activo', 'activated_by', 'scheduled_start_time'}
 
     def get(self, request):
         _ensure_user_defaults(request.user)

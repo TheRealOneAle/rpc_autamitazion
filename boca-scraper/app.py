@@ -62,9 +62,143 @@ DEFAULT_COLORS = [
     "#000080", "#808000", "#008080", "#800000",
 ]
 
+NAMED_COLORS = {
+    "red": "#FF0000", "blue": "#0000FF", "green": "#008000", "yellow": "#FFFF00",
+    "orange": "#FFA500", "purple": "#800080", "magenta": "#FF00FF", "cyan": "#00FFFF",
+    "pink": "#FFC0CB", "black": "#000000", "white": "#FFFFFF", "gray": "#808080",
+    "grey": "#808080", "salmon": "#FA8072", "gold": "#FFD700", "lime": "#00FF00",
+    "navy": "#000080", "teal": "#008080", "brown": "#8B4513", "darkgreen": "#006400",
+}
+
+
+def _normalize_color(raw):
+    """Normaliza un color a formato hexadecimal #RRGGBB."""
+    if not raw:
+        return None
+    raw = str(raw).strip().lower()
+    if raw in NAMED_COLORS:
+        return NAMED_COLORS[raw]
+    raw_clean = raw.lstrip("#")
+    if re.match(r"^[0-9a-fA-F]{6}$", raw_clean):
+        return f"#{raw_clean.upper()}"
+    if re.match(r"^[0-9a-fA-F]{3}$", raw_clean):
+        return f"#{raw_clean[0]*2}{raw_clean[1]*2}{raw_clean[2]*2}".upper()
+    return None
+
 
 def _hash(s):
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+
+def _fetch_problems_from_db():
+    """Opción 1: Consulta directa a la base de datos PostgreSQL de BOCA (problemtable)."""
+    db_host = os.environ.get("BOCA_DB_HOST")
+    if not db_host:
+        return None
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=db_host,
+            port=int(os.environ.get("BOCA_DB_PORT", "5432")),
+            dbname=os.environ.get("BOCA_DB_NAME", "bkboca"),
+            user=os.environ.get("BOCA_DB_USER", "postgres"),
+            password=os.environ.get("BOCA_DB_PASS", "1234"),
+            connect_timeout=5,
+        )
+        try:
+            with conn.cursor() as cur:
+                contest_num = os.environ.get("BOCA_CONTEST_NUMBER")
+                if contest_num:
+                    cur.execute(
+                        "SELECT problemnumber, problemname, problemcolor, problemcolorname "
+                        "FROM problemtable WHERE contestnumber = %s ORDER BY problemnumber ASC",
+                        (contest_num,)
+                    )
+                else:
+                    cur.execute(
+                        "SELECT problemnumber, problemname, problemcolor, problemcolorname "
+                        "FROM problemtable ORDER BY problemnumber ASC"
+                    )
+                rows = cur.fetchall()
+                problems = []
+                for r in rows:
+                    p_num = int(r[0])
+                    p_name = (r[1] or chr(64 + p_num)).strip()
+                    p_color = _normalize_color(r[2]) or _normalize_color(r[3])
+                    if not p_color:
+                        p_color = DEFAULT_COLORS[(p_num - 1) % len(DEFAULT_COLORS)]
+                    problems.append((p_num, p_name, p_color))
+                print(f"[scraper] {len(problems)} problemas obtenidos desde BD BOCA", flush=True)
+                return problems if problems else None
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[scraper] advertencia: error al conectar con BD BOCA: {e}", flush=True)
+        return None
+
+
+def _fetch_problems_from_admin(base):
+    """Opción 2: Scraping de la página de administración admin/problem.php de BOCA."""
+    try:
+        session = requests.Session()
+        session.get(f"{base}/index.php", timeout=15)
+        sid = session.cookies.get("PHPSESSID", "")
+        session.get(
+            f"{base}/index.php",
+            params={"name": BOCA_USER, "password": _hash(_hash(BOCA_PASS) + sid)},
+            timeout=15,
+        )
+        resp = session.get(f"{base}/admin/problem.php", timeout=15)
+        resp.raise_for_status()
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        tables = soup.find_all("table")
+        if len(tables) < 3:
+            return None
+
+        table = tables[2]
+        rows = table.find_all("tr")
+        problems = []
+        for row in rows:
+            cells = row.find_all(["td", "th"])
+            if not cells:
+                continue
+            p_num_text = cells[0].get_text(strip=True)
+            if not p_num_text.isdigit():
+                continue
+            p_num = int(p_num_text)
+            if p_num == 0:
+                continue  # Problema general/fake 0
+            p_name = cells[1].get_text(strip=True) if len(cells) > 1 else chr(64 + p_num)
+
+            color_cell = cells[-1]
+            color = None
+            # 1. Input name="colorN"
+            color_inp = color_cell.find("input", attrs={"name": re.compile(r"^color\d+$")})
+            if color_inp and color_inp.get("value"):
+                color = color_inp["value"].strip()
+            # 2. Img title / alt
+            if not color:
+                img = color_cell.find("img")
+                if img and img.get("title"):
+                    color = img["title"].strip()
+            # 3. Input name="colornameN"
+            if not color:
+                cname_inp = color_cell.find("input", attrs={"name": re.compile(r"^colorname\d+$")})
+                if cname_inp and cname_inp.get("value") and cname_inp["value"] != "Can be empty":
+                    color = cname_inp["value"].strip()
+
+            norm_color = _normalize_color(color)
+            if not norm_color:
+                norm_color = DEFAULT_COLORS[(p_num - 1) % len(DEFAULT_COLORS)]
+
+            problems.append((p_num, p_name, norm_color))
+
+        print(f"[scraper] {len(problems)} problemas obtenidos desde admin/problem.php", flush=True)
+        return problems if problems else None
+    except Exception as e:
+        print(f"[scraper] advertencia: error al scrapear admin/problem.php: {e}", flush=True)
+        return None
 
 
 def _login_and_fetch(base):
@@ -88,7 +222,7 @@ def _extract_color(cell):
             r"background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})", cell.get("style", "")
         )
         color = m.group(1) if m else ""
-    return color or None
+    return _normalize_color(color) or None
 
 
 def _is_solved(cell_text):
@@ -138,7 +272,7 @@ def _parse(html):
                         problem_col_start = col_idx  # primer problema en esta columna
                     idx = len(problem_colors)
                     color = _extract_color(cell) or DEFAULT_COLORS[idx % len(DEFAULT_COLORS)]
-                    problem_colors.append(color)
+                    problem_colors.append((idx + 1, t, color))
             continue
 
         if not header_found:
@@ -180,8 +314,7 @@ def _parse(html):
             "solved_problems": solved_problems,
         })
 
-    color_list = [(i + 1, c) for i, c in enumerate(problem_colors)]
-    return teams, color_list
+    return teams, problem_colors
 
 
 def _get_data(base):
@@ -196,6 +329,12 @@ def _get_data(base):
     try:
         html = _login_and_fetch(base)
         teams, color_list = _parse(html)
+
+        # Enriquecer colores usando BD BOCA (Opción 1) o admin/problem.php (Opción 2)
+        admin_problems = _fetch_problems_from_db() or _fetch_problems_from_admin(base)
+        if admin_problems:
+            color_list = admin_problems
+
         with _lock:
             _caches[key] = {"teams": teams, "colors": color_list, "ts": time.time()}
         return teams, color_list
@@ -227,7 +366,14 @@ def get_problems():
     try:
         base, _ = _base_from_request()
         _, colors = _get_data(base)
-        rows = [{"problemnumber": n, "problemcolor": c} for n, c in colors]
+        rows = [
+            {
+                "problemnumber": item[0],
+                "problemname": item[1] if len(item) > 1 else chr(64 + item[0]),
+                "problemcolor": item[2] if len(item) > 2 else item[1],
+            }
+            for item in colors
+        ]
         return jsonify({"success": True, "rows": rows})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

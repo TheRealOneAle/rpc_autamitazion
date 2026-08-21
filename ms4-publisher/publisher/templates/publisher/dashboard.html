@@ -225,6 +225,24 @@
         <p id="publish-msg"></p>
       </div>
 
+      <!-- PROGRAMACIÓN DE INICIO -->
+      <div class="card">
+        <h2>Programar inicio automático</h2>
+        <p class="next-run" style="margin-bottom:12px;">
+          Define la hora exacta para comenzar a publicar el scoreboard de forma automatizada.
+        </p>
+        <div class="field" style="margin-bottom:10px;">
+          <label for="inp-start-datetime">Fecha y hora de inicio</label>
+          <input type="datetime-local" id="inp-start-datetime" style="padding:9px 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--card-bg);color:var(--text);font-size:0.9rem;width:100%;">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="action" id="btn-schedule" style="margin-top:0;background:var(--primary);">Programar inicio</button>
+          <button class="action" id="btn-cancel-schedule" style="margin-top:0;background:var(--red);display:none;width:auto;padding:0 14px;white-space:nowrap;">Cancelar</button>
+        </div>
+        <div id="schedule-badge-wrap" style="margin-top:10px;"></div>
+        <p id="schedule-msg" style="margin-top:6px;font-size:0.85rem;min-height:18px;"></p>
+      </div>
+
       <div class="card">
         <h2>Texto de la publicación</h2>
         <p class="next-run" style="margin-bottom:10px;">
@@ -237,6 +255,7 @@
         </div>
       </div>
     </div>
+
 
     <!-- COLUMNA DERECHA: PREVIEW -->
     <div class="card">
@@ -386,10 +405,85 @@
             : '';
         }
         document.getElementById('btn-publish').disabled = false;
+
+        // Actualizar visual de inicio programado
+        const badgeWrap = document.getElementById('schedule-badge-wrap');
+        const btnCancel = document.getElementById('btn-cancel-schedule');
+        const inpDateTime = document.getElementById('inp-start-datetime');
+
+        if (d.is_scheduled && d.scheduled_start) {
+          badgeWrap.innerHTML = `<span style="background:var(--green-light);color:var(--green-text);padding:4px 10px;border-radius:12px;font-size:0.8rem;font-weight:600;display:inline-block;">⏰ Programado para: ${fmt(d.scheduled_start)}</span>`;
+          btnCancel.style.display = 'inline-block';
+        } else {
+          badgeWrap.innerHTML = '';
+          btnCancel.style.display = 'none';
+        }
       } catch(e) {
         document.getElementById('label-proceso').textContent = 'Sin conexión con el servicio';
       }
     }
+
+    // Programar inicio
+    document.getElementById('btn-schedule').addEventListener('click', async () => {
+      const inp = document.getElementById('inp-start-datetime');
+      const msg = document.getElementById('schedule-msg');
+      const btn = document.getElementById('btn-schedule');
+      const val = inp.value.trim();
+
+      if (!val) {
+        msg.textContent = 'Selecciona una fecha y hora';
+        msg.style.color = 'var(--red)';
+        return;
+      }
+
+      btn.disabled = true;
+      msg.textContent = 'Programando...';
+      msg.style.color = 'var(--text-sub)';
+
+      try {
+        const r = await fetch(`${API}/api/schedule/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ start_time: val }),
+        });
+        const d = await r.json();
+        if (r.ok) {
+          msg.textContent = d.message || 'Inicio programado con éxito';
+          msg.style.color = 'var(--green)';
+          loadStatus();
+        } else {
+          msg.textContent = d.error || 'Error al programar';
+          msg.style.color = 'var(--red)';
+        }
+      } catch(e) {
+        msg.textContent = 'Error de conexión';
+        msg.style.color = 'var(--red)';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // Cancelar inicio programado
+    document.getElementById('btn-cancel-schedule').addEventListener('click', async () => {
+      const msg = document.getElementById('schedule-msg');
+      try {
+        const r = await fetch(`${API}/api/schedule/`, {
+          method: 'DELETE',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        });
+        if (r.ok) {
+          msg.textContent = 'Programación cancelada';
+          msg.style.color = 'var(--text-sub)';
+          loadStatus();
+        } else {
+          msg.textContent = 'Error al cancelar';
+          msg.style.color = 'var(--red)';
+        }
+      } catch(e) {
+        msg.textContent = 'Error de conexión';
+        msg.style.color = 'var(--red)';
+      }
+    });
 
     async function loadConfig() {
       try {
@@ -498,3 +592,4 @@
   </script>
 </body>
 </html>
+

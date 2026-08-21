@@ -10,6 +10,12 @@ services:
       - BOCA_USER=silux
       - BOCA_PASS=ovallos.
       - CACHE_TTL=60
+      - BOCA_DB_HOST=${BOCA_DB_HOST:-}
+      - BOCA_DB_PORT=${BOCA_DB_PORT:-5432}
+      - BOCA_DB_NAME=${BOCA_DB_NAME:-bkboca}
+      - BOCA_DB_USER=${BOCA_DB_USER:-postgres}
+      - BOCA_DB_PASS=${BOCA_DB_PASS:-1234}
+      - BOCA_CONTEST_NUMBER=${BOCA_CONTEST_NUMBER:-}
     restart: unless-stopped
 
   generarglobos:
@@ -21,6 +27,12 @@ services:
       - globos-data:/app/globosgenerados
     environment:
       - BD_SERVICE_URL=http://boca-scraper:3001
+      - BOCA_DB_HOST=${BOCA_DB_HOST:-}
+      - BOCA_DB_PORT=${BOCA_DB_PORT:-5432}
+      - BOCA_DB_NAME=${BOCA_DB_NAME:-bkboca}
+      - BOCA_DB_USER=${BOCA_DB_USER:-postgres}
+      - BOCA_DB_PASS=${BOCA_DB_PASS:-1234}
+      - BOCA_CONTEST_NUMBER=${BOCA_CONTEST_NUMBER:-}
     depends_on:
       - boca-scraper
     restart: unless-stopped
@@ -84,12 +96,14 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
+      - ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
     command: sh /app/entrypoint.sh
     depends_on:
       - ms4-postgres
       - boca-scraper
       - generartabla
     restart: unless-stopped
+
 
 volumes:
   globos-data:
