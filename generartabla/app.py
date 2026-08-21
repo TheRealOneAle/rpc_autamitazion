@@ -92,14 +92,16 @@ def _globo_img_html(globos_dir, letter_idx):
     )
 
 
-def _ensure_globos(cantidadProblemas):
-    """Downloads balloon images from GLOBOS_SERVICE_URL to /tmp/globosgenerados/.
+def _ensure_globos(cantidadProblemas, year=None, contest=None):
+    """Downloads balloon images from GLOBOS_SERVICE_URL to /tmp/globosgenerados/{file_key}/.
     Falls back to /app/globosgenerados/ (may be empty — _globo_img_html handles that case)."""
-    tmp_dir = '/tmp/globosgenerados'
+    file_key = _file_key(year, contest) if year and contest else ""
+    tmp_dir = os.path.join('/tmp/globosgenerados', file_key) if file_key else '/tmp/globosgenerados'
     os.makedirs(tmp_dir, exist_ok=True)
     try:
         # Pre-warm: trigger generation in case the service is sleeping
-        requests.post(f"{GLOBOS_SERVICE_URL}/generate", timeout=60)
+        gen_url = _bd_url(GLOBOS_SERVICE_URL, "/generate", year, contest) if year and contest else f"{GLOBOS_SERVICE_URL}/generate"
+        requests.post(gen_url, timeout=60)
     except Exception as e:
         print(f"[warn] pre-generación de globos: {e}", flush=True)
     try:
@@ -107,7 +109,8 @@ def _ensure_globos(cantidadProblemas):
             letter = chr(65 + i)
             dest = os.path.join(tmp_dir, f'{letter}.png')
             if not os.path.exists(dest):
-                r = requests.get(f"{GLOBOS_SERVICE_URL}/globo/{letter}.png", timeout=30)
+                globo_url = _bd_url(GLOBOS_SERVICE_URL, f"/globo/{letter}.png", year, contest) if year and contest else f"{GLOBOS_SERVICE_URL}/globo/{letter}.png"
+                r = requests.get(globo_url, timeout=30)
                 r.raise_for_status()
                 with open(dest, 'wb') as f:
                     f.write(r.content)
@@ -115,6 +118,7 @@ def _ensure_globos(cantidadProblemas):
     except Exception as e:
         print(f"[warn] no se pudo descargar globos de {GLOBOS_SERVICE_URL}: {e}", flush=True)
         return '/app/globosgenerados'
+
 
 
 def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoamerica", globos_dir='/app/globosgenerados'):
@@ -238,7 +242,7 @@ def generate_ranking(year, contest):
             if 0 <= j < cantidadProblemas:
                 problemasTeam[i][j] = 1
 
-    globos_dir = _ensure_globos(cantidadProblemas)
+    globos_dir = _ensure_globos(cantidadProblemas, year=year, contest=contest)
     html = _ranking_html(rows, cantidadProblemas, problemasTeam, globos_dir=globos_dir)
     html_path = os.path.join(OUTPUT_DIR, f"ranking_{file_key}.html")
     jpg_path = os.path.join(OUTPUT_DIR, f"ranking_{file_key}.jpg")

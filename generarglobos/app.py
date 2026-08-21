@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, send_file
+from flask import Flask, jsonify, send_file, request
 import os
 
 app = Flask(__name__)
@@ -34,11 +34,38 @@ def _generate_balloon(letter, output_path, color_hex):
     result.save(output_path)
 
 
+def _parse_contest_params():
+
+    """Extrae (year, contest) desde query params o JSON body."""
+    year = (request.args.get("year") or "").strip()
+    contest = (request.args.get("contest") or "").strip()
+    if "/" in contest:
+        parts = contest.split("/")
+        year = parts[0].strip()
+        contest = parts[1].strip()
+
+    if not year and request.is_json:
+        data = request.get_json(silent=True) or {}
+        year = str(data.get("year", "")).strip()
+        contest = str(data.get("contest", "")).strip()
+        if "/" in contest:
+            parts = contest.split("/")
+            year = parts[0].strip()
+            contest = parts[1].strip()
+
+    return year, contest
+
+
 @app.route('/globo/<letter>.png')
 def serve_globo(letter):
     upper = letter.upper()
+    year, contest = _parse_contest_params()
+    file_key = f"{year}_{str(int(contest)).zfill(2)}" if year and contest else ""
+    contest_dir = os.path.join(GLOBOS_DIR, file_key) if file_key else GLOBOS_DIR
+    os.makedirs(contest_dir, exist_ok=True)
     os.makedirs(GLOBOS_DIR, exist_ok=True)
-    path = os.path.join(GLOBOS_DIR, f'{upper}.png')
+
+    path = os.path.join(contest_dir, f'{upper}.png')
 
     if not os.path.exists(path):
         try:
@@ -46,9 +73,15 @@ def serve_globo(letter):
             spec = importlib.util.spec_from_file_location("generarglobos_mod", SCRIPT_PATH)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            mod.generar_globos()
+            mod.generar_globos(year=year, contest=contest)
         except Exception as e:
             print(f"[warn] generar_globos falló: {e}", flush=True)
+
+    if not os.path.exists(path):
+        # Fallback to root globos dir if available
+        root_path = os.path.join(GLOBOS_DIR, f'{upper}.png')
+        if os.path.exists(root_path):
+            path = root_path
 
     if not os.path.exists(path):
         color = FALLBACK_COLORS.get(upper, '#CCCCCC')
@@ -66,21 +99,23 @@ def serve_globo(letter):
 
 @app.route('/generate', methods=['POST'])
 def generate_globos():
+    year, contest = _parse_contest_params()
     os.makedirs(GLOBOS_DIR, exist_ok=True)
     try:
         import importlib.util
         spec = importlib.util.spec_from_file_location("generarglobos_mod", SCRIPT_PATH)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        success, msg = mod.generar_globos()
+        success, msg = mod.generar_globos(year=year, contest=contest)
         if success:
-            return jsonify({"status": "success", "message": msg}), 200
+            return jsonify({"status": "success", "message": msg, "contest": f"{year}/{contest}" if year else "default"}), 200
         else:
             return jsonify({"status": "error", "message": msg}), 500
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 @app.route('/status', methods=['GET'])

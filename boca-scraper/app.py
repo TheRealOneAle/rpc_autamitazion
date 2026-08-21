@@ -202,17 +202,39 @@ def _fetch_problems_from_admin(base):
 
 
 def _login_and_fetch(base):
-    session = requests.Session()
-    session.get(f"{base}/index.php", timeout=15)
-    sid = session.cookies.get("PHPSESSID", "")
-    session.get(
-        f"{base}/index.php",
-        params={"name": BOCA_USER, "password": _hash(_hash(BOCA_PASS) + sid)},
-        timeout=15,
-    )
-    resp = session.get(f"{base}/admin/score.php", timeout=15)
-    resp.raise_for_status()
-    return resp.text
+    auth_candidates = [
+        (BOCA_USER, BOCA_PASS),
+        ("board", ""),
+        ("score", ""),
+    ]
+
+    last_err = None
+    for user, pwd in auth_candidates:
+        if not user and pwd is None:
+            continue
+        try:
+            session = requests.Session()
+            session.get(f"{base}/index.php", timeout=15)
+            sid = session.cookies.get("PHPSESSID", "")
+            pass_hash = _hash(_hash(pwd or "") + sid)
+            session.get(
+                f"{base}/index.php",
+                params={"name": user, "password": pass_hash},
+                timeout=15,
+            )
+            for path in ["score/score.php", "admin/score.php", "score.php"]:
+                resp = session.get(f"{base}/{path}", timeout=15)
+                if resp.status_code == 200 and "Session expired" not in resp.text:
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    tables = soup.find_all("table")
+                    if len(tables) >= 3:
+                        return resp.text
+        except Exception as e:
+            last_err = e
+            continue
+
+    raise ValueError(f"No se pudo obtener la tabla de score para {base}: {last_err or 'No se encontraron tablas válidas'}")
+
 
 
 def _extract_color(cell):

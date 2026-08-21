@@ -65,17 +65,23 @@ def _fetch_from_db():
         return None
 
 
-def generar_globos():
+def generar_globos(year=None, contest=None):
     """Función principal que genera los globos. Retorna (success, message)"""
+    file_key = f"{year}_{str(int(contest)).zfill(2)}" if year and contest else ""
+    target_dir = os.path.join(GLOBOS_DIR, file_key) if file_key else GLOBOS_DIR
+    os.makedirs(target_dir, exist_ok=True)
     os.makedirs(GLOBOS_DIR, exist_ok=True)
 
     # 1. Intentar lectura directa de BD BOCA
     colores = _fetch_from_db()
 
-    # 2. Si no hay BD o falló, consultar al microservicio bd (boca-scraper)
+    # 2. Si no hay BD o falló, consultar al microservicio bd (boca-scraper) con el contest correspondiente
     if not colores:
         try:
-            response = requests.get(f"{BD_SERVICE_URL}/api/problems", timeout=15)
+            url = f"{BD_SERVICE_URL}/api/problems"
+            if year and contest:
+                url += f"?contest={year}%2F{str(int(contest)).zfill(2)}"
+            response = requests.get(url, timeout=15)
             if response.status_code != 200:
                 return False, f"Error obteniendo problemas: {response.text}"
 
@@ -91,14 +97,14 @@ def generar_globos():
                 )
                 for idx, row in enumerate(data.get("rows", []))
             ]
-            print(f"[generarglobos] Obtenidos {len(colores)} problemas desde {BD_SERVICE_URL}", flush=True)
+            print(f"[generarglobos] Obtenidos {len(colores)} problemas desde {url}", flush=True)
         except Exception as e:
             return False, f"Error de conexión al servicio bd: {e}"
 
     if not colores:
         return False, "No se encontraron problemas para generar globos"
 
-    def generar_globo(nombre_globo, color_hex):
+    def generar_globo(dest_dir, nombre_globo, color_hex):
         relleno_path = os.path.join(BASE_DIR, "bigballoon.png")
         contorno_path = os.path.join(BASE_DIR, "bigballoontransp.png")
 
@@ -121,19 +127,24 @@ def generar_globos():
         result.alpha_composite(contorno, (0, -1))
         result.alpha_composite(contorno, (0, 1))
 
-        output_path = os.path.join(GLOBOS_DIR, nombre_globo)
+        output_path = os.path.join(dest_dir, nombre_globo)
         result.save(output_path)
 
     for item in colores:
         problemnumber, problemname, color = item[0], item[1], item[2]
         letter = str(problemname).strip().upper() if problemname else chr(64 + int(problemnumber))
         nombre_globo = f"{letter}.png"
-        generar_globo(nombre_globo, color)
-        # También guardar por letra por si acaso
+        generar_globo(target_dir, nombre_globo, color)
+        if target_dir != GLOBOS_DIR:
+            generar_globo(GLOBOS_DIR, nombre_globo, color)
+
+        # También guardar por letra derivada de número por si acaso
         if problemnumber and str(problemnumber).isdigit():
             num_letter = chr(64 + int(problemnumber))
             if num_letter != letter:
-                generar_globo(f"{num_letter}.png", color)
+                generar_globo(target_dir, f"{num_letter}.png", color)
+                if target_dir != GLOBOS_DIR:
+                    generar_globo(GLOBOS_DIR, f"{num_letter}.png", color)
 
     return True, f"Globos generados exitosamente ({len(colores)} problemas)"
 

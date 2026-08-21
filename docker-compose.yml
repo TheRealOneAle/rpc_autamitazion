@@ -5,6 +5,8 @@ services:
     build: ./boca-scraper
     ports:
       - "3001:3001"
+    volumes:
+      - ./boca-scraper:/app
     environment:
       - BOCA_URL=https://redprogramacioncompetitiva.com/contests/2026/06
       - BOCA_USER=silux
@@ -17,6 +19,7 @@ services:
       - BOCA_DB_PASS=${BOCA_DB_PASS:-1234}
       - BOCA_CONTEST_NUMBER=${BOCA_CONTEST_NUMBER:-}
     restart: unless-stopped
+
 
   generarglobos:
     build: ./generarglobos
