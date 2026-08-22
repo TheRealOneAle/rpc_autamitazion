@@ -169,6 +169,35 @@ def _fetch_problems_from_db(year=None, contest=None):
 
 
 
+def _find_score_table(soup):
+    """Encuentra dinámicamente la tabla del ranking sin depender del índice fijo de tabla."""
+    tables = soup.find_all("table")
+    for table in tables:
+        for row in table.find_all("tr"):
+            cells = row.find_all(["td", "th"])
+            texts = [c.get_text(strip=True) for c in cells]
+            if texts and texts[0] == "#" and any(h in texts for h in ["Name", "University", "Total"]):
+                return table
+    # Fallback a la tabla con mayor cantidad de filas (el scoreboard siempre tiene decenas o cientos de filas)
+    if tables:
+        return max(tables, key=lambda t: len(t.find_all("tr")))
+    return None
+
+
+def _find_problems_table(soup):
+    """Encuentra dinámicamente la tabla de problemas en admin/problem.php."""
+    tables = soup.find_all("table")
+    for table in tables:
+        for row in table.find_all("tr"):
+            cells = row.find_all(["td", "th"])
+            texts = [c.get_text(strip=True).lower() for c in cells]
+            if any("problem #" in t or "short name" in t for t in texts):
+                return table
+    if len(tables) >= 3:
+        return tables[2]
+    return None
+
+
 def _fetch_problems_from_admin(base):
     """Opción 2: Scraping de la página de administración admin/problem.php de BOCA."""
     try:
@@ -184,11 +213,10 @@ def _fetch_problems_from_admin(base):
         resp.raise_for_status()
 
         soup = BeautifulSoup(resp.text, "html.parser")
-        tables = soup.find_all("table")
-        if len(tables) < 3:
+        table = _find_problems_table(soup)
+        if not table:
             return None
 
-        table = tables[2]
         rows = table.find_all("tr")
         problems = []
         for row in rows:
@@ -254,12 +282,13 @@ def _login_and_fetch(base):
                 params={"name": user, "password": pass_hash},
                 timeout=15,
             )
-            for path in ["score/score.php", "admin/score.php", "score.php"]:
+            # Para usuarios admin (silux) priorizar admin/score.php; para board/score priorizar score/score.php
+            paths = ["admin/score.php", "score/score.php", "score.php"] if user == BOCA_USER else ["score/score.php", "admin/score.php", "score.php"]
+            for path in paths:
                 resp = session.get(f"{base}/{path}", timeout=15)
                 if resp.status_code == 200 and "Session expired" not in resp.text:
                     soup = BeautifulSoup(resp.text, "html.parser")
-                    tables = soup.find_all("table")
-                    if len(tables) >= 3:
+                    if _find_score_table(soup) is not None:
                         return resp.text
         except Exception as e:
             last_err = e
@@ -298,11 +327,10 @@ def _parse_total(text):
 
 def _parse(html):
     soup = BeautifulSoup(html, "html.parser")
-    tables = soup.find_all("table")
-    if len(tables) < 3:
-        raise ValueError(f"Se esperaban al menos 3 tablas, se encontraron {len(tables)}")
+    table = _find_score_table(soup)
+    if not table:
+        raise ValueError("No se encontró una tabla de score válida en el HTML")
 
-    table = tables[2]
     rows = table.find_all("tr")
 
     problem_colors = []
