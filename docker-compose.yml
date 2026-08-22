@@ -12,12 +12,12 @@ services:
       - BOCA_USER=silux
       - BOCA_PASS=ovallos.
       - CACHE_TTL=60
-      - BOCA_DB_HOST=${BOCA_DB_HOST:-}
-      - BOCA_DB_PORT=${BOCA_DB_PORT:-5432}
-      - BOCA_DB_NAME=${BOCA_DB_NAME:-bkboca}
-      - BOCA_DB_USER=${BOCA_DB_USER:-postgres}
-      - BOCA_DB_PASS=${BOCA_DB_PASS:-1234}
-      - BOCA_CONTEST_NUMBER=${BOCA_CONTEST_NUMBER:-}
+      - BOCA_DB_HOST=${BOCA_DB_HOST:}
+      - BOCA_DB_PORT=${BOCA_DB_PORT:}
+      - BOCA_DB_NAME=${BOCA_DB_NAME:}
+      - BOCA_DB_USER=${BOCA_DB_USER:}
+      - BOCA_DB_PASS=${BOCA_DB_PASS:}
+      - BOCA_CONTEST_NUMBER=${BOCA_CONTEST_NUMBER:}
     restart: unless-stopped
 
 
@@ -30,12 +30,12 @@ services:
       - globos-data:/app/globosgenerados
     environment:
       - BD_SERVICE_URL=http://boca-scraper:3001
-      - BOCA_DB_HOST=${BOCA_DB_HOST:-}
-      - BOCA_DB_PORT=${BOCA_DB_PORT:-5432}
-      - BOCA_DB_NAME=${BOCA_DB_NAME:-bkboca}
-      - BOCA_DB_USER=${BOCA_DB_USER:-postgres}
-      - BOCA_DB_PASS=${BOCA_DB_PASS:-1234}
-      - BOCA_CONTEST_NUMBER=${BOCA_CONTEST_NUMBER:-}
+      - BOCA_DB_HOST=${BOCA_DB_HOST:}
+      - BOCA_DB_PORT=${BOCA_DB_PORT:}
+      - BOCA_DB_NAME=${BOCA_DB_NAME:}
+      - BOCA_DB_USER=${BOCA_DB_USER:}
+      - BOCA_DB_PASS=${BOCA_DB_PASS:}
+      - BOCA_CONTEST_NUMBER=${BOCA_CONTEST_NUMBER:}
     depends_on:
       - boca-scraper
     restart: unless-stopped
@@ -93,14 +93,14 @@ services:
       - MS1_URL=http://boca-scraper:3001
       - MS2_URL=http://generartabla:5002
       - FORCE_SCRIPT_NAME=/facebook-table/publisher
-      - SECRET_KEY=${MS4_SECRET_KEY:-ms4-dev-secret-key}
+      - SECRET_KEY=${MS4_SECRET_KEY:}
       - DEBUG=True
       - ALLOWED_HOSTS=*
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
-      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
-      - ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
-      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:}
+      - ALLOWED_EMAILS=${ALLOWED_EMAILS:}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:}
     command: sh /app/entrypoint.sh
 
     depends_on:
