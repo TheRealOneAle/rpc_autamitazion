@@ -93,13 +93,13 @@ def _globo_img_html(globos_dir, letter_idx):
 
 
 def _ensure_globos(cantidadProblemas, year=None, contest=None):
-    """Downloads balloon images from GLOBOS_SERVICE_URL to /tmp/globosgenerados/{file_key}/.
-    Falls back to /app/globosgenerados/ (may be empty — _globo_img_html handles that case)."""
+    """Downloads balloon images from GLOBOS_SERVICE_URL to /tmp/globosgenerados/{file_key}/,
+    always overwriting with the freshest generated balloons."""
     file_key = _file_key(year, contest) if year and contest else ""
     tmp_dir = os.path.join('/tmp/globosgenerados', file_key) if file_key else '/tmp/globosgenerados'
     os.makedirs(tmp_dir, exist_ok=True)
     try:
-        # Pre-warm: trigger generation in case the service is sleeping
+        # Trigger fresh balloon generation on the globos microservice
         gen_url = _bd_url(GLOBOS_SERVICE_URL, "/generate", year, contest) if year and contest else f"{GLOBOS_SERVICE_URL}/generate"
         requests.post(gen_url, timeout=60)
     except Exception as e:
@@ -108,16 +108,16 @@ def _ensure_globos(cantidadProblemas, year=None, contest=None):
         for i in range(cantidadProblemas):
             letter = chr(65 + i)
             dest = os.path.join(tmp_dir, f'{letter}.png')
-            if not os.path.exists(dest):
-                globo_url = _bd_url(GLOBOS_SERVICE_URL, f"/globo/{letter}.png", year, contest) if year and contest else f"{GLOBOS_SERVICE_URL}/globo/{letter}.png"
-                r = requests.get(globo_url, timeout=30)
-                r.raise_for_status()
+            globo_url = _bd_url(GLOBOS_SERVICE_URL, f"/globo/{letter}.png", year, contest) if year and contest else f"{GLOBOS_SERVICE_URL}/globo/{letter}.png"
+            r = requests.get(globo_url, timeout=30)
+            if r.status_code == 200:
                 with open(dest, 'wb') as f:
                     f.write(r.content)
         return tmp_dir
     except Exception as e:
         print(f"[warn] no se pudo descargar globos de {GLOBOS_SERVICE_URL}: {e}", flush=True)
         return '/app/globosgenerados'
+
 
 
 

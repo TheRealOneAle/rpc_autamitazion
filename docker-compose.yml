@@ -100,7 +100,9 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
       - ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
     command: sh /app/entrypoint.sh
+
     depends_on:
       - ms4-postgres
       - boca-scraper

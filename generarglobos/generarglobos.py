@@ -20,60 +20,85 @@ def _normalize_hex(color_hex):
     return "CCCCCC"
 
 
-def _fetch_from_db():
-    """Consulta directa opcional a PostgreSQL de BOCA (problemtable) si está configurado."""
+def _fetch_from_db(year=None, contest=None):
+    """Consulta directa opcional a PostgreSQL de BOCA (problemtable) con nombre dinámico rpc_año_contest."""
     db_host = os.environ.get("BOCA_DB_HOST")
     if not db_host:
         return None
-    try:
-        import psycopg2
-        conn = psycopg2.connect(
-            host=db_host,
-            port=int(os.environ.get("BOCA_DB_PORT", "5432")),
-            dbname=os.environ.get("BOCA_DB_NAME", "bkboca"),
-            user=os.environ.get("BOCA_DB_USER", "postgres"),
-            password=os.environ.get("BOCA_DB_PASS", "1234"),
-            connect_timeout=5,
-        )
+
+    # Nombre dinámico de la BD: rpc_año_contest (ej: rpc_2026_06)
+    if year and contest:
+        target_db = f"rpc_{year}_{str(int(contest)).zfill(2)}"
+    else:
+        target_db = os.environ.get("BOCA_DB_NAME", "bkboca")
+
+    db_candidates = [target_db]
+    env_db = os.environ.get("BOCA_DB_NAME")
+    if env_db and env_db not in db_candidates:
+        db_candidates.append(env_db)
+    if "bkboca" not in db_candidates:
+        db_candidates.append("bkboca")
+
+    for db_name in db_candidates:
         try:
-            with conn.cursor() as cur:
-                contest_num = os.environ.get("BOCA_CONTEST_NUMBER")
-                if contest_num:
-                    cur.execute(
-                        "SELECT problemnumber, problemname, problemcolor, problemcolorname "
-                        "FROM problemtable WHERE contestnumber = %s ORDER BY problemnumber ASC",
-                        (contest_num,)
-                    )
-                else:
-                    cur.execute(
-                        "SELECT problemnumber, problemname, problemcolor, problemcolorname "
-                        "FROM problemtable ORDER BY problemnumber ASC"
-                    )
-                rows = cur.fetchall()
-                colores = []
-                for r in rows:
-                    p_num = int(r[0])
-                    p_name = (r[1] or chr(64 + p_num)).strip()
-                    p_color = r[2] or r[3] or "CCCCCC"
-                    colores.append((p_num, p_name, p_color))
-                print(f"[generarglobos] {len(colores)} problemas leídos directamente de BD BOCA", flush=True)
-                return colores if colores else None
-        finally:
-            conn.close()
-    except Exception as e:
-        print(f"[generarglobos] aviso: error al leer BD BOCA: {e}", flush=True)
-        return None
+            import psycopg2
+            conn = psycopg2.connect(
+                host=db_host,
+                port=int(os.environ.get("BOCA_DB_PORT", "5432")),
+                dbname=db_name,
+                user=os.environ.get("BOCA_DB_USER", "postgres"),
+                password=os.environ.get("BOCA_DB_PASS", "1234"),
+                connect_timeout=5,
+            )
+            try:
+                with conn.cursor() as cur:
+                    contest_num = os.environ.get("BOCA_CONTEST_NUMBER") or (str(int(contest)) if contest else None)
+                    rows = []
+                    if contest_num:
+                        try:
+                            cur.execute(
+                                "SELECT problemnumber, problemname, problemcolor, problemcolorname "
+                                "FROM problemtable WHERE contestnumber = %s ORDER BY problemnumber ASC",
+                                (contest_num,)
+                            )
+                            rows = cur.fetchall()
+                        except Exception:
+                            conn.rollback()
+
+                    if not rows:
+                        cur.execute(
+                            "SELECT problemnumber, problemname, problemcolor, problemcolorname "
+                            "FROM problemtable ORDER BY problemnumber ASC"
+                        )
+                        rows = cur.fetchall()
+
+                    colores = []
+                    for r in rows:
+                        p_num = int(r[0])
+                        p_name = (r[1] or chr(64 + p_num)).strip()
+                        p_color = r[2] or r[3] or "CCCCCC"
+                        colores.append((p_num, p_name, p_color))
+                    if colores:
+                        print(f"[generarglobos] {len(colores)} problemas leídos directamente de BD BOCA ({db_name})", flush=True)
+                        return colores
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[generarglobos] aviso: error al leer BD BOCA ({db_name}): {e}", flush=True)
+
+    return None
 
 
 def generar_globos(year=None, contest=None):
-    """Función principal que genera los globos. Retorna (success, message)"""
+    """Función principal que genera y sobreescribe los globos. Retorna (success, message)"""
     file_key = f"{year}_{str(int(contest)).zfill(2)}" if year and contest else ""
     target_dir = os.path.join(GLOBOS_DIR, file_key) if file_key else GLOBOS_DIR
     os.makedirs(target_dir, exist_ok=True)
     os.makedirs(GLOBOS_DIR, exist_ok=True)
 
-    # 1. Intentar lectura directa de BD BOCA
-    colores = _fetch_from_db()
+    # 1. Intentar lectura directa de BD BOCA con nombre dinámico
+    colores = _fetch_from_db(year, contest)
+
 
     # 2. Si no hay BD o falló, consultar al microservicio bd (boca-scraper) con el contest correspondiente
     if not colores:

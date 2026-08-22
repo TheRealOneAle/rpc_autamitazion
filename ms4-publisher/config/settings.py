@@ -9,12 +9,16 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 # Contexto bajo el cual vive la app tras el Nginx (ej. /facebook-table/publisher).
 # Vacio = raiz del dominio (Render).
 FORCE_SCRIPT_NAME = os.environ.get('FORCE_SCRIPT_NAME', '').rstrip('/')
+_csrf_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
 CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
+    'https://redprogramacioncompetitiva.com',
+    'http://redprogramacioncompetitiva.com',
     'http://localhost:8000',
     'http://localhost:8001',
     'http://localhost:8003',
-]
+] + [o.strip() for o in _csrf_env.split(',') if o.strip()]
+
 
 # Login con Google (OAuth2)
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')

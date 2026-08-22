@@ -90,51 +90,83 @@ def _hash(s):
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
-def _fetch_problems_from_db():
-    """Opción 1: Consulta directa a la base de datos PostgreSQL de BOCA (problemtable)."""
+def _parse_year_contest_from_base(base):
+    m = re.search(r"/contests/(\d{4})/(\d{1,2})", base or "")
+    if m:
+        return m.group(1), m.group(2)
+    return None, None
+
+
+def _fetch_problems_from_db(year=None, contest=None):
+    """Opción 1: Consulta directa a la base de datos PostgreSQL de BOCA (problemtable) con nombre dinámico rpc_año_contest."""
     db_host = os.environ.get("BOCA_DB_HOST")
     if not db_host:
         return None
-    try:
-        import psycopg2
-        conn = psycopg2.connect(
-            host=db_host,
-            port=int(os.environ.get("BOCA_DB_PORT", "5432")),
-            dbname=os.environ.get("BOCA_DB_NAME", "bkboca"),
-            user=os.environ.get("BOCA_DB_USER", "postgres"),
-            password=os.environ.get("BOCA_DB_PASS", "1234"),
-            connect_timeout=5,
-        )
+
+    # Nombre dinámico de la BD: rpc_año_contest (ej: rpc_2026_06)
+    if year and contest:
+        target_db = f"rpc_{year}_{str(int(contest)).zfill(2)}"
+    else:
+        target_db = os.environ.get("BOCA_DB_NAME", "bkboca")
+
+    db_candidates = [target_db]
+    env_db = os.environ.get("BOCA_DB_NAME")
+    if env_db and env_db not in db_candidates:
+        db_candidates.append(env_db)
+    if "bkboca" not in db_candidates:
+        db_candidates.append("bkboca")
+
+    for db_name in db_candidates:
         try:
-            with conn.cursor() as cur:
-                contest_num = os.environ.get("BOCA_CONTEST_NUMBER")
-                if contest_num:
-                    cur.execute(
-                        "SELECT problemnumber, problemname, problemcolor, problemcolorname "
-                        "FROM problemtable WHERE contestnumber = %s ORDER BY problemnumber ASC",
-                        (contest_num,)
-                    )
-                else:
-                    cur.execute(
-                        "SELECT problemnumber, problemname, problemcolor, problemcolorname "
-                        "FROM problemtable ORDER BY problemnumber ASC"
-                    )
-                rows = cur.fetchall()
-                problems = []
-                for r in rows:
-                    p_num = int(r[0])
-                    p_name = (r[1] or chr(64 + p_num)).strip()
-                    p_color = _normalize_color(r[2]) or _normalize_color(r[3])
-                    if not p_color:
-                        p_color = DEFAULT_COLORS[(p_num - 1) % len(DEFAULT_COLORS)]
-                    problems.append((p_num, p_name, p_color))
-                print(f"[scraper] {len(problems)} problemas obtenidos desde BD BOCA", flush=True)
-                return problems if problems else None
-        finally:
-            conn.close()
-    except Exception as e:
-        print(f"[scraper] advertencia: error al conectar con BD BOCA: {e}", flush=True)
-        return None
+            import psycopg2
+            conn = psycopg2.connect(
+                host=db_host,
+                port=int(os.environ.get("BOCA_DB_PORT", "5432")),
+                dbname=db_name,
+                user=os.environ.get("BOCA_DB_USER", "postgres"),
+                password=os.environ.get("BOCA_DB_PASS", "1234"),
+                connect_timeout=5,
+            )
+            try:
+                with conn.cursor() as cur:
+                    contest_num = os.environ.get("BOCA_CONTEST_NUMBER") or (str(int(contest)) if contest else None)
+                    rows = []
+                    if contest_num:
+                        try:
+                            cur.execute(
+                                "SELECT problemnumber, problemname, problemcolor, problemcolorname "
+                                "FROM problemtable WHERE contestnumber = %s ORDER BY problemnumber ASC",
+                                (contest_num,)
+                            )
+                            rows = cur.fetchall()
+                        except Exception:
+                            conn.rollback()
+
+                    if not rows:
+                        cur.execute(
+                            "SELECT problemnumber, problemname, problemcolor, problemcolorname "
+                            "FROM problemtable ORDER BY problemnumber ASC"
+                        )
+                        rows = cur.fetchall()
+
+                    problems = []
+                    for r in rows:
+                        p_num = int(r[0])
+                        p_name = (r[1] or chr(64 + p_num)).strip()
+                        p_color = _normalize_color(r[2]) or _normalize_color(r[3])
+                        if not p_color:
+                            p_color = DEFAULT_COLORS[(p_num - 1) % len(DEFAULT_COLORS)]
+                        problems.append((p_num, p_name, p_color))
+                    if problems:
+                        print(f"[scraper] {len(problems)} problemas obtenidos desde BD BOCA ({db_name})", flush=True)
+                        return problems
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[scraper] aviso: error al conectar con BD BOCA ({db_name}): {e}", flush=True)
+
+    return None
+
 
 
 def _fetch_problems_from_admin(base):
@@ -339,21 +371,23 @@ def _parse(html):
     return teams, problem_colors
 
 
-def _get_data(base):
+def _get_data(base, force_fresh=False):
     key = _contest_key(base)
     now = time.time()
 
-    with _lock:
-        cache = _caches.get(key)
-        if cache is not None and now - cache["ts"] <= CACHE_TTL:
-            return cache["teams"], cache["colors"]
+    if not force_fresh:
+        with _lock:
+            cache = _caches.get(key)
+            if cache is not None and now - cache["ts"] <= CACHE_TTL:
+                return cache["teams"], cache["colors"]
 
     try:
         html = _login_and_fetch(base)
         teams, color_list = _parse(html)
 
+        year, contest = _parse_year_contest_from_base(base)
         # Enriquecer colores usando BD BOCA (Opción 1) o admin/problem.php (Opción 2)
-        admin_problems = _fetch_problems_from_db() or _fetch_problems_from_admin(base)
+        admin_problems = _fetch_problems_from_db(year, contest) or _fetch_problems_from_admin(base)
         if admin_problems:
             color_list = admin_problems
 
@@ -387,7 +421,14 @@ def get_teams():
 def get_problems():
     try:
         base, _ = _base_from_request()
-        _, colors = _get_data(base)
+        year, contest = _parse_year_contest_from_base(base)
+        # 1. Consulta fresca directa de BD BOCA o admin
+        fresh_problems = _fetch_problems_from_db(year, contest) or _fetch_problems_from_admin(base)
+        if fresh_problems:
+            colors = fresh_problems
+        else:
+            _, colors = _get_data(base, force_fresh=True)
+
         rows = [
             {
                 "problemnumber": item[0],
@@ -399,6 +440,7 @@ def get_problems():
         return jsonify({"success": True, "rows": rows})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 @app.route("/api/problems/count", methods=["GET"])
