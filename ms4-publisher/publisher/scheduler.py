@@ -41,8 +41,63 @@ def _ensure_scheduler():
     return _scheduler
 
 
+def _check_first_solutions_job():
+    """Job periódico (cada 35s) que monitorea nuevos First Solutions y los publica inmediatamente."""
+    from django.contrib.auth.models import User
+    from .models import UserConfig, FirstSolutionEvent
+    from .orchestrator import _get_config, _user_contest_params, publish_first_solution_event
+    from django.conf import settings
+    import requests
+
+    ms1_url = _get_config("ms1_url") or settings.MS1_URL
+
+    for user in User.objects.filter(is_active=True):
+        try:
+            proceso_activo = UserConfig.objects.filter(user=user, key='proceso_activo').first()
+            if not proceso_activo or proceso_activo.value.lower() != 'true':
+                continue
+
+            fs_auto = UserConfig.objects.filter(user=user, key='fs_auto_publish').first()
+            if fs_auto and fs_auto.value.lower() == 'false':
+                continue
+
+            year, contest = _user_contest_params(user)
+            contest_key = f"{year}/{contest}"
+
+            # Consultar First Solutions de boca-scraper
+            url = f"{ms1_url}/api/first-solutions?contest={year}%2F{contest}"
+            r = requests.get(url, timeout=12)
+            if r.status_code != 200:
+                continue
+
+            data = r.json()
+            if not data.get("success"):
+                continue
+
+            solutions = data.get("first_solutions", [])
+            for fs in solutions:
+                letter = fs.get("problem_letter", "").upper()
+                if not letter:
+                    continue
+
+                # Chequear si ya fue publicado
+                exists = FirstSolutionEvent.objects.filter(
+                    contest_key=contest_key,
+                    problem_letter=letter,
+                    success=True,
+                ).exists()
+
+                if not exists:
+                    log.info(f"[SENSOR FS] ¡Nuevo First Solution detectado para problema {letter} por {fs.get('team_name')}!")
+                    print(f"[SENSOR FS] ¡Nuevo First Solution detectado para problema {letter} por {fs.get('team_name')}!")
+                    publish_first_solution_event(fs, user=user)
+
+        except Exception as e:
+            log.debug(f"[SENSOR FS] Error en polling para {user.username}: {e}")
+
+
 def start_publication_cycle(custom_cutoff=None):
-    """Inicia el ciclo regular de publicaciones (cada hora en punto hasta el cutoff)."""
+    """Inicia el ciclo regular de publicaciones (cada hora en punto hasta el cutoff) y el sensor First Solution."""
     global _scheduler, _scheduled_info
     scheduler = _ensure_scheduler()
 
@@ -53,6 +108,7 @@ def start_publication_cycle(custom_cutoff=None):
 
     from .orchestrator import orchestrate_all
 
+    # 1. Publicación horaria de scoreboard
     scheduler.add_job(
         func=orchestrate_all,
         trigger='cron',
@@ -62,6 +118,19 @@ def start_publication_cycle(custom_cutoff=None):
         misfire_grace_time=120,
         coalesce=True,
     )
+
+    # 2. Sensor reactivo First Solution (polling cada 35s)
+    scheduler.add_job(
+        func=_check_first_solutions_job,
+        trigger='interval',
+        seconds=35,
+        id='rpc_first_solutions_sensor',
+        replace_existing=True,
+        misfire_grace_time=60,
+        coalesce=True,
+    )
+
+    # 3. Publicación final
     scheduler.add_job(
         func=_final_and_stop,
         trigger='date',
@@ -70,13 +139,9 @@ def start_publication_cycle(custom_cutoff=None):
         replace_existing=True,
     )
 
-    msg = f"Scheduler iniciado: publicación cada hora en punto + final a las {cutoff.strftime('%H:%M')}"
+    msg = f"Scheduler iniciado: publicación horaria + sensor First Solution (35s) + final a las {cutoff.strftime('%H:%M')}"
     log.info(msg)
     print(f"[SCHEDULER] {msg}")
-
-    jobs = scheduler.get_jobs()
-    for job in jobs:
-        print(f"[SCHEDULER]   Job '{job.id}' → próximo: {job.next_run_time}")
 
     return True
 
@@ -87,12 +152,10 @@ def schedule_publication(start_datetime: datetime, end_datetime: datetime = None
     scheduler = _ensure_scheduler()
 
     now = _get_now_bogota()
-    # Asegurar que start_datetime tenga timezone
     if start_datetime.tzinfo is None:
         start_datetime = start_datetime.replace(tzinfo=BOGOTA_TZ)
 
     if start_datetime <= now:
-        # Si la hora ya pasó o es inmediata, arranca el ciclo directo
         start_publication_cycle(custom_cutoff=end_datetime)
         from .orchestrator import orchestrate_all
         import threading
@@ -112,9 +175,10 @@ def schedule_publication(start_datetime: datetime, end_datetime: datetime = None
         'cutoff': cutoff.isoformat(),
     }
 
-    # Cancelar cualquier job previo de inicio o publicación recurrente
     if scheduler.get_job('rpc_hourly_publication'):
         scheduler.remove_job('rpc_hourly_publication')
+    if scheduler.get_job('rpc_first_solutions_sensor'):
+        scheduler.remove_job('rpc_first_solutions_sensor')
     if scheduler.get_job('rpc_final_publication'):
         scheduler.remove_job('rpc_final_publication')
 
@@ -210,6 +274,8 @@ def get_schedule_info():
                 label = job.id
                 if job.id == 'rpc_hourly_publication':
                     label = 'Publicación cada hora'
+                elif job.id == 'rpc_first_solutions_sensor':
+                    label = 'Sensor First Solution (35s)'
                 elif job.id == 'rpc_final_publication':
                     label = 'Publicación final'
                 elif job.id == 'rpc_scheduled_start':

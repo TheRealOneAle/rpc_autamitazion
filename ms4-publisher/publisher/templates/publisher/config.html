@@ -62,9 +62,8 @@
       transition: background .2s, color .2s;
     }
 
-    /* TOPBAR */
     .topbar {
-      max-width: 680px;
+      max-width: 720px;
       margin: 0 auto 24px;
       display: flex;
       align-items: center;
@@ -111,16 +110,14 @@
       .go-btn[data-disabled] { color: #9d8ecf; }
     }
 
-    /* STACK */
     .stack {
       display: flex;
       flex-direction: column;
       gap: 18px;
-      max-width: 680px;
+      max-width: 720px;
       margin: 0 auto;
     }
 
-    /* CARD */
     .card {
       background: var(--card-bg);
       border-radius: 14px;
@@ -130,15 +127,17 @@
     }
 
     .card h2 {
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       font-weight: 700;
       color: var(--text-sub);
       text-transform: uppercase;
       letter-spacing: .06em;
       margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    /* CHECKLIST */
     .checklist { display: flex; flex-direction: column; gap: 10px; }
     .check-item { display: flex; align-items: center; gap: 10px; }
     .check-icon {
@@ -166,12 +165,11 @@
       font-weight: 600;
     }
 
-    /* FIELDS */
     .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
     .field:last-of-type { margin-bottom: 0; }
     .field label { font-size: 0.8rem; font-weight: 600; color: var(--text-sub); }
 
-    .field input, .field textarea {
+    .field input, .field textarea, .field select {
       padding: 9px 12px;
       background: var(--input-bg);
       border: 1px solid var(--input-border);
@@ -186,7 +184,7 @@
       font-family: monospace;
       resize: vertical;
     }
-    .field input:focus, .field textarea:focus {
+    .field input:focus, .field textarea:focus, .field select:focus {
       outline: none;
       border-color: var(--primary);
     }
@@ -202,7 +200,6 @@
 
     .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
-    /* SAVE BUTTON */
     .save-btn {
       width: 100%;
       margin-top: 16px;
@@ -220,14 +217,11 @@
     .save-btn.green { background: var(--green); }
     .save-btn.green:hover { background: var(--green-hover); }
 
-    /* MESSAGES */
     .msg { margin-top: 9px; font-size: 0.82rem; text-align: center; min-height: 18px; color: var(--green); }
     .msg.err { color: var(--red); }
 
-    /* URL PREVIEW */
-    .url-preview { font-size: 0.72rem; color: var(--text-hint); margin-top: 8px; word-break: break-all; }
+    .url-preview { font-size: 0.75rem; color: var(--text-hint); margin-top: 8px; word-break: break-all; }
 
-    /* BADGE */
     .badge {
       display: inline-block;
       padding: 3px 10px;
@@ -239,7 +233,6 @@
       margin-top: 6px;
     }
 
-    /* TOKEN HELP */
     .token-help { font-size: 0.75rem; color: var(--text-hint); line-height: 1.5; margin-bottom: 14px; }
     .token-help a { color: var(--primary); text-decoration: none; }
     .token-help a:hover { text-decoration: underline; }
@@ -251,15 +244,71 @@
       font-size: 0.78rem;
     }
 
-    /* HINT BELOW GO BTN */
     .go-hint {
-      max-width: 680px;
+      max-width: 720px;
       margin: 10px auto 0;
       text-align: right;
       font-size: 0.78rem;
       color: var(--text-hint);
     }
     @media (max-width: 560px) { .go-hint { text-align: center; } }
+
+    /* OPTIONS PILLS */
+    .pills-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .pill-opt {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 8px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all .15s;
+      background: var(--input-bg);
+    }
+    .pill-opt:hover {
+      border-color: var(--primary);
+    }
+    .pill-opt.selected {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* CHECKBOX TILES */
+    .checkbox-tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .checkbox-tile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all .15s;
+    }
+    .checkbox-tile:hover {
+      border-color: var(--primary);
+    }
+    .checkbox-tile input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -267,7 +316,7 @@
   <div class="topbar">
     <div class="topbar-title">
       <h1>Configuración</h1>
-      <p>Completa los datos para activar el publicador</p>
+      <p>Personaliza publicaciones, rankings por país y sensor reactivo</p>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <a href="{{ CONTEXT_PATH }}/logout/" class="go-btn" style="background:transparent;border:1px solid var(--border);color:var(--text);">
@@ -288,7 +337,7 @@
 
     <!-- PROGRESO -->
     <div class="card">
-      <h2>Progreso</h2>
+      <h2>Progreso de Configuración</h2>
       <div class="checklist">
         <div class="check-item">
           <div class="check-icon pending" id="chk-token">1</div>
@@ -296,13 +345,13 @@
         </div>
         <div class="check-item">
           <div class="check-icon pending" id="chk-contest">2</div>
-          <span class="check-label pending" id="lbl-contest">Datos del contest</span>
+          <span class="check-label pending" id="lbl-contest">Datos del contest BOCA</span>
         </div>
         <div class="check-item">
-          <div class="check-icon optional" id="chk-operator">–</div>
-          <span class="check-label" id="lbl-operator">
-            Operador del sistema
-            <span class="check-badge">opcional</span>
+          <div class="check-icon optional" id="chk-rankings">✓</div>
+          <span class="check-label" id="lbl-rankings">
+            Rankings por país y Top N
+            <span class="check-badge">activo</span>
           </span>
         </div>
       </div>
@@ -312,12 +361,9 @@
     <div class="card">
       <h2>Token de Facebook</h2>
       <p class="token-help">
-        Cada persona guarda <strong>su propio token y página</strong>. No tiene que ser de
-        la cuenta con la que iniciaste sesión: pega el <strong>Page Access Token</strong>
-        de la página a la que quieras publicar, con el permiso
-        <code>pages_manage_posts</code>. Obtenlo en el
-        <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a>:
-        selecciona tu app, luego tu página y genera el token.
+        Pega el <strong>Page Access Token</strong> de la página en la que se publicará, con permiso
+        <code>pages_manage_posts</code>. Obtenlo en
+        <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a>.
       </p>
       <div class="field">
         <label for="inp-page-id">Page ID</label>
@@ -334,15 +380,14 @@
 
     <!-- DATOS DEL CONTEST -->
     <div class="card">
-      <h2>Datos del contest</h2>
+      <h2>Datos del Contest BOCA</h2>
       <p class="token-help">
-        El contest se elige <strong>manualmente</strong>. Cada persona configura el suyo
-        (año y número). Es el contest que se usará para generar la tabla de este panel.
+        Configura el año y número de contest activo para el scraping de envíos y scoreboard.
       </p>
       <div class="field">
         <label for="inp-competition-name">Nombre de la competencia</label>
-        <input type="text" id="inp-competition-name" placeholder="Ej: Competencia 02 RPC 2026">
-        <span class="hint">Aparece en el texto del post de Facebook.</span>
+        <input type="text" id="inp-competition-name" placeholder="Ej: Competencia 06 RPC 2026">
+        <span class="hint">Aparece en los copies oficiales de Facebook.</span>
       </div>
       <hr class="divider">
       <div class="row-2">
@@ -352,12 +397,60 @@
         </div>
         <div class="field">
           <label for="inp-boca-contest">Número de contest</label>
-          <input type="number" id="inp-boca-contest" placeholder="10" min="1">
+          <input type="number" id="inp-boca-contest" placeholder="06" min="1">
         </div>
       </div>
       <p class="url-preview" id="boca-url-preview"></p>
       <button class="save-btn" id="btn-contest">Guardar datos del contest</button>
       <p class="msg" id="msg-contest"></p>
+    </div>
+
+    <!-- TAMAÑO TOP N Y RANKINGS POR PAÍS -->
+    <div class="card">
+      <h2>Parametrización de Scoreboard</h2>
+      <div class="field">
+        <label>Tamaño del Top (Filas mostradas en imagen)</label>
+        <div class="pills-grid">
+          <div class="pill-opt" data-top="5" onclick="selectTopN(5)">Top 5</div>
+          <div class="pill-opt selected" data-top="10" onclick="selectTopN(10)">Top 10 ⭐</div>
+          <div class="pill-opt" data-top="15" onclick="selectTopN(15)">Top 15</div>
+          <div class="pill-opt" data-top="20" onclick="selectTopN(20)">Top 20</div>
+        </div>
+        <span class="hint" style="margin-top:6px;">La plantilla adaptará la altura, globos y tipografía sin pixelarse.</span>
+      </div>
+
+      <hr class="divider">
+
+      <div class="field">
+        <label>Rankings a publicar consecutivamente</label>
+        <p class="token-help" style="margin-bottom:6px;">
+          Selecciona qué rankings se generarán y publicarán en Facebook cada hora. Se publican en orden con un retardo de 3.5s.
+        </p>
+        <div class="checkbox-tiles" id="countries-checkbox-list">
+          <label class="checkbox-tile">
+            <input type="checkbox" id="chk-latam" value="LATAM" checked>
+            <span>🌎 Top Latinoamérica</span>
+          </label>
+        </div>
+      </div>
+
+      <button class="save-btn" id="btn-rankings-cfg">Guardar configuración de rankings</button>
+      <p class="msg" id="msg-rankings"></p>
+    </div>
+
+    <!-- SENSOR FIRST SOLUTION -->
+    <div class="card">
+      <h2>Sensor Reactivo "First Solution"</h2>
+      <p class="token-help">
+        Monitorea los envíos de BOCA en segundo plano cada 35 segundos. Al detectar que un problema fue aceptado (AC/YES)
+        por primera vez en la competencia, genera automáticamente una micro-tarjeta y copy conmemorativo en Facebook.
+      </p>
+      <label class="checkbox-tile" style="margin-top:8px;">
+        <input type="checkbox" id="chk-fs-auto" checked>
+        <span>Activar publicación automática de First Solutions</span>
+      </label>
+      <button class="save-btn" id="btn-fs-cfg" style="margin-top:14px;">Guardar sensor First Solution</button>
+      <p class="msg" id="msg-fs"></p>
     </div>
 
     <!-- OPERADOR -->
@@ -366,7 +459,7 @@
       <div class="field">
         <label for="inp-activated-by">Nombre de quien activó el sistema</label>
         <input type="text" id="inp-activated-by" placeholder="Ej: Juan Pérez (puede dejarse vacío)">
-        <span class="hint">Si se completa, aparece en el mensaje de Facebook como agradecimiento.</span>
+        <span class="hint">Si se completa, aparece en el pie del mensaje de Facebook.</span>
       </div>
       <div id="activated-badge-wrap"></div>
       <button class="save-btn" id="btn-activated">Guardar operador</button>
@@ -377,32 +470,53 @@
 
   <script>
     const API = '{{ CONTEXT_PATH }}';
-    const state = { token: false, contest: false, operator: false };
+    const state = { token: false, contest: false, operator: false, selectedTopN: 10, activeRankings: ['LATAM'] };
+
+    const COUNTRY_FLAGS = {
+      'CO': '🇨🇴', 'MX': '🇲🇽', 'PE': '🇵🇪',
+      'AR': '🇦🇷', 'CL': '🇨🇱', 'EC': '🇪🇨',
+      'BO': '🇧🇴', 'VE': '🇻🇪', 'CR': '🇨🇷',
+      'PA': '🇵🇦', 'BR': '🇧🇷', 'CU': '🇨🇺',
+      'DO': '🇩🇴', 'GT': '🇬🇹', 'SV': '🇸🇻',
+      'HN': '🇭🇳', 'NI': '🇳🇮', 'PY': '🇵🇾',
+      'UY': '🇺🇾',
+    };
 
     function getCookie(name) {
       const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
       return v ? v[2] : '';
     }
 
+    function selectTopN(n) {
+      state.selectedTopN = n;
+      document.querySelectorAll('.pill-opt').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.getAttribute('data-top')) === n);
+      });
+    }
+
     function setCheck(key, done) {
       state[key] = done;
       if (key === 'operator') {
         const icon = document.getElementById('chk-operator');
-        icon.className = done ? 'check-icon done' : 'check-icon optional';
-        icon.textContent = done ? '✓' : '–';
+        if (icon) {
+          icon.className = done ? 'check-icon done' : 'check-icon optional';
+          icon.textContent = done ? '✓' : '–';
+        }
         return;
       }
       const icon  = document.getElementById('chk-' + key);
       const label = document.getElementById('lbl-' + key);
       const nums  = { token: '1', contest: '2' };
-      if (done) {
-        icon.className  = 'check-icon done';
-        icon.textContent = '✓';
-        label.className = 'check-label done';
-      } else {
-        icon.className  = 'check-icon pending';
-        icon.textContent = nums[key];
-        label.className = 'check-label pending';
+      if (icon && label) {
+        if (done) {
+          icon.className  = 'check-icon done';
+          icon.textContent = '✓';
+          label.className = 'check-label done';
+        } else {
+          icon.className  = 'check-icon pending';
+          icon.textContent = nums[key];
+          label.className = 'check-label pending';
+        }
       }
       updateGoBtn();
     }
@@ -441,6 +555,38 @@
     document.getElementById('inp-boca-year').addEventListener('input', updateBocaPreview);
     document.getElementById('inp-boca-contest').addEventListener('input', updateBocaPreview);
 
+    async function loadCountriesCheckboxes(selectedList) {
+      try {
+        const res = await fetch(`${API}/api/countries/`);
+        const data = await res.json();
+        const container = document.getElementById('countries-checkbox-list');
+        
+        let html = `
+          <label class="checkbox-tile">
+            <input type="checkbox" class="rank-checkbox" value="LATAM" ${selectedList.includes('LATAM') ? 'checked' : ''}>
+            <span>🌎 Top Latinoamérica</span>
+          </label>
+        `;
+
+        if (data.success && data.countries) {
+          data.countries.forEach(c => {
+            if (c.code === 'UNKNOWN') return;
+            const flag = COUNTRY_FLAGS[c.code] || '🏳️';
+            const checked = selectedList.includes(c.code) ? 'checked' : '';
+            html += `
+              <label class="checkbox-tile">
+                <input type="checkbox" class="rank-checkbox" value="${c.code}" ${checked}>
+                <span>${flag} Top ${c.name} (${c.teams_count})</span>
+              </label>
+            `;
+          });
+        }
+        container.innerHTML = html;
+      } catch(e) {
+        console.warn('Error loading countries:', e);
+      }
+    }
+
     async function loadAll() {
       try {
         const [configRes, bocaRes, tokenRes] = await Promise.all([
@@ -467,6 +613,23 @@
         updateBocaPreview();
 
         if (map.competition_name && boca.year && boca.contest) setCheck('contest', true);
+
+        if (map.top_n_size) {
+          selectTopN(parseInt(map.top_n_size) || 10);
+        }
+
+        let activeRankings = ['LATAM'];
+        if (map.active_rankings) {
+          try {
+            activeRankings = JSON.parse(map.active_rankings);
+          } catch(_) {}
+        }
+        state.activeRankings = activeRankings;
+        await loadCountriesCheckboxes(activeRankings);
+
+        if (map.fs_auto_publish !== undefined) {
+          document.getElementById('chk-fs-auto').checked = (map.fs_auto_publish !== 'false');
+        }
 
         if (map.activated_by) {
           document.getElementById('inp-activated-by').value = map.activated_by;
@@ -540,6 +703,65 @@
           msg.textContent = 'Guardado';
           updateBocaPreview();
           setCheck('contest', true);
+          loadCountriesCheckboxes(state.activeRankings);
+        } else {
+          msg.textContent = 'Error al guardar';
+          msg.className = 'msg err';
+        }
+      } catch(_) {
+        msg.textContent = 'Error de conexión';
+        msg.className = 'msg err';
+      }
+    });
+
+    document.getElementById('btn-rankings-cfg').addEventListener('click', async () => {
+      const msg = document.getElementById('msg-rankings');
+      const selected = Array.from(document.querySelectorAll('.rank-checkbox:checked')).map(cb => cb.value);
+      if (selected.length === 0) selected.push('LATAM');
+
+      msg.textContent = 'Guardando...';
+      msg.className = 'msg';
+
+      try {
+        const r = await fetch(`${API}/api/config/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({
+            top_n_size: String(state.selectedTopN),
+            active_rankings: selected,
+          }),
+        });
+        if (r.ok) {
+          state.activeRankings = selected;
+          msg.textContent = `Configuración guardada (Top ${state.selectedTopN}, ${selected.length} rankings)`;
+          msg.className = 'msg';
+        } else {
+          msg.textContent = 'Error al guardar';
+          msg.className = 'msg err';
+        }
+      } catch(_) {
+        msg.textContent = 'Error de conexión';
+        msg.className = 'msg err';
+      }
+    });
+
+    document.getElementById('btn-fs-cfg').addEventListener('click', async () => {
+      const msg = document.getElementById('msg-fs');
+      const isAuto = document.getElementById('chk-fs-auto').checked;
+      msg.textContent = 'Guardando...';
+      msg.className = 'msg';
+
+      try {
+        const r = await fetch(`${API}/api/config/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({
+            fs_auto_publish: isAuto ? 'true' : 'false',
+          }),
+        });
+        if (r.ok) {
+          msg.textContent = isAuto ? 'Sensor First Solution ACTIVADO' : 'Sensor First Solution DESACTIVADO';
+          msg.className = 'msg';
         } else {
           msg.textContent = 'Error al guardar';
           msg.className = 'msg err';
@@ -568,8 +790,7 @@
             : '';
           setCheck('operator', !!name);
         } else {
-          const d = await r.json();
-          msg.textContent = d.detail || 'Error al guardar';
+          msg.textContent = 'Error al guardar';
           msg.className = 'msg err';
         }
       } catch(_) {
@@ -582,4 +803,3 @@
   </script>
 </body>
 </html>
-

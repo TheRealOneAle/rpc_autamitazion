@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RPC Social Stream</title>
+  <title>RPC Social Stream — Panel Principal</title>
   <style>
     :root {
       --bg:            #f5f3ff;
@@ -32,14 +32,14 @@
         --text-hint:     #6b6585;
         --border:        #2e2a45;
         --input-border:  #3d3760;
-        --primary:       #a78bfa;
-        --primary-hover: #8b5cf6;
-        --primary-dis:   #3d2d7a;
-        --green:         #4ade80;
-        --red:           #f87171;
-        --fb-border:     #2e2a45;
-        --fb-reaction:   #a29abf;
-        --shadow-card:   0 1px 6px rgba(0,0,0,0.4);
+        --primary:          #a78bfa;
+        --primary-hover:    #8b5cf6;
+        --primary-dis:      #3d2d7a;
+        --green:            #4ade80;
+        --red:              #f87171;
+        --fb-border:        #2e2a45;
+        --fb-reaction:      #a29abf;
+        --shadow-card:      0 1px 6px rgba(0,0,0,0.4);
       }
     }
 
@@ -54,9 +54,8 @@
       transition: background .2s, color .2s;
     }
 
-    /* TOPBAR */
     .topbar {
-      max-width: 900px;
+      max-width: 1080px;
       margin: 0 auto 20px;
       display: flex;
       align-items: flex-start;
@@ -87,17 +86,15 @@
     }
     .config-btn:hover { background: var(--border); }
 
-    /* GRID */
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 20px;
-      max-width: 900px;
+      max-width: 1080px;
       margin: 0 auto;
     }
-    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
 
-    /* CARD */
     .card {
       background: var(--card-bg);
       border-radius: 12px;
@@ -107,27 +104,28 @@
     }
 
     .card h2 {
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       font-weight: 700;
       color: var(--text-sub);
       text-transform: uppercase;
       letter-spacing: .06em;
       margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    /* STATUS */
     .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
     .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--border); }
     .dot.on  { background: var(--green); }
     .dot.off { background: var(--red); }
-    .status-label { font-size: 0.9rem; }
+    .status-label { font-size: 0.9rem; font-weight: 600; }
     .next-run { font-size: 0.8rem; color: var(--text-sub); margin-top: 4px; }
 
-    /* BUTTONS */
     button.action {
-      width: 100%; margin-top: 12px; padding: 12px;
+      width: 100%; margin-top: 12px; padding: 11px;
       color: #fff; border: none;
-      border-radius: 8px; font-size: 1rem; font-weight: 600;
+      border-radius: 8px; font-size: 0.95rem; font-weight: 600;
       cursor: pointer; transition: background .15s;
     }
     button.action:disabled { opacity: .55; cursor: not-allowed; }
@@ -140,19 +138,35 @@
     #publish-msg { margin-top: 10px; font-size: 0.85rem; text-align: center; min-height: 20px; color: var(--green); }
     #publish-msg.err { color: var(--red); }
 
-    /* TEXT EDITOR */
     .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
     .field label { font-size: 0.78rem; font-weight: 600; color: var(--text-sub); }
     #inp-text {
       width: 100%; padding: 10px 12px;
       background: var(--card-bg); border: 1px solid var(--input-border);
       border-radius: 8px; font-size: 0.85rem; font-family: inherit; line-height: 1.5;
-      color: var(--text); resize: vertical; min-height: 140px;
+      color: var(--text); resize: vertical; min-height: 130px;
     }
     #inp-text:focus { outline: none; border-color: var(--primary); }
     .save-indicator { font-size: 0.75rem; color: var(--text-hint); min-height: 16px; }
     .save-indicator.ok { color: var(--green); }
     .save-indicator.err { color: var(--red); }
+
+    /* PREVIEW CONTROLS */
+    .preview-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .preview-controls select {
+      padding: 7px 10px;
+      border: 1px solid var(--input-border);
+      border-radius: 7px;
+      background: var(--card-bg);
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
 
     /* FACEBOOK PREVIEW */
     .fb-card { border: 1px solid var(--fb-border); border-radius: 10px; overflow: hidden; font-size: 0.9rem; }
@@ -166,7 +180,7 @@
     .fb-meta { font-size: 0.75rem; color: var(--text-sub); }
     .fb-body {
       padding: 0 14px 14px; white-space: pre-wrap; line-height: 1.6;
-      color: var(--text); word-break: break-word;
+      color: var(--text); word-break: break-word; font-size: 0.88rem;
     }
     .fb-img-placeholder {
       background: linear-gradient(135deg, var(--bg) 0%, var(--border) 100%);
@@ -174,15 +188,58 @@
       align-items: center; justify-content: center;
       color: var(--primary); font-size: 0.85rem; gap: 8px; margin-bottom: 10px;
     }
-    .fb-img-placeholder svg { opacity: .5; }
     .fb-reactions {
       border-top: 1px solid var(--fb-border); padding: 8px 14px;
       font-size: 0.8rem; color: var(--fb-reaction); display: flex; gap: 16px;
     }
 
-    .preview-note { font-size: 0.75rem; color: var(--text-sub); margin-top: 12px; text-align: center; }
-    .loading { color: var(--text-sub); font-size: 0.85rem; animation: pulse 1.2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    /* FIRST SOLUTIONS FEED */
+    .fs-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 280px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .fs-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--input-bg);
+      font-size: 0.82rem;
+    }
+    .fs-letter {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .fs-info {
+      flex: 1;
+      margin-left: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .fs-badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .fs-badge.published { background: var(--green-light); color: var(--green-text); }
+    .fs-badge.pending { background: var(--border); color: var(--text-sub); }
   </style>
 </head>
 <body>
@@ -190,7 +247,7 @@
   <div class="topbar">
     <div>
       <h1>RPC Social Stream</h1>
-      <p class="subtitle">Panel de publicaciones en Facebook</p>
+      <p class="subtitle">Panel de publicaciones y monitor reactivo First Solution</p>
     </div>
     <div class="topbar-actions">
       <a href="{{ CONTEXT_PATH }}/configuracion/" class="config-btn">
@@ -213,24 +270,37 @@
 
     <!-- COLUMNA IZQUIERDA -->
     <div style="display:flex;flex-direction:column;gap:20px;">
+      
+      <!-- ESTADO Y CONTROLES -->
       <div class="card">
-        <h2>Estado del servicio</h2>
+        <h2>Estado del publicador</h2>
         <div class="status-row">
           <span class="dot" id="dot-proceso"></span>
           <span class="status-label" id="label-proceso">Cargando...</span>
         </div>
         <p class="next-run" id="next-run"></p>
-        <button class="action" id="btn-publish" disabled>Publicar ahora</button>
+        <button class="action" id="btn-publish" disabled>Publicar rankings activos ahora</button>
         <button class="action" id="btn-stop">Detener publicaciones</button>
         <p id="publish-msg"></p>
+      </div>
+
+      <!-- SENSOR FIRST SOLUTION FEED -->
+      <div class="card">
+        <h2>
+          <span>🎈 Sensor First Solution</span>
+          <span id="fs-count-badge" style="font-size:0.75rem;padding:2px 8px;border-radius:10px;background:var(--primary-light);color:var(--primary);">0 resueltos</span>
+        </h2>
+        <p class="next-run" style="margin-bottom:8px;">
+          Primeros envíos aceptados detectados en la maratón en tiempo real.
+        </p>
+        <div class="fs-list" id="fs-list">
+          <div style="font-size:0.8rem;color:var(--text-sub);padding:10px;text-align:center;">Cargando First Solutions...</div>
+        </div>
       </div>
 
       <!-- PROGRAMACIÓN DE INICIO -->
       <div class="card">
         <h2>Programar inicio automático</h2>
-        <p class="next-run" style="margin-bottom:12px;">
-          Define la hora exacta para comenzar a publicar el scoreboard de forma automatizada.
-        </p>
         <div class="field" style="margin-bottom:10px;">
           <label for="inp-start-datetime">Fecha y hora de inicio</label>
           <input type="datetime-local" id="inp-start-datetime" style="padding:9px 12px;border:1px solid var(--input-border);border-radius:8px;background:var(--card-bg);color:var(--text);font-size:0.9rem;width:100%;">
@@ -243,23 +313,44 @@
         <p id="schedule-msg" style="margin-top:6px;font-size:0.85rem;min-height:18px;"></p>
       </div>
 
+      <!-- TEXTO MANUAL -->
       <div class="card">
         <h2>Texto de la publicación</h2>
         <p class="next-run" style="margin-bottom:10px;">
-          Se guarda automáticamente mientras escribes. Si está vacío, se publica el texto generado automáticamente.
+          Se guarda automáticamente. Si está vacío, se utiliza la plantilla inteligente por país/LATAM.
         </p>
         <div class="field">
-          <label for="inp-text">Mensaje (lo que se publica con la tabla)</label>
+          <label for="inp-text">Mensaje personalizado</label>
           <textarea id="inp-text" placeholder="Escribe aquí el texto de la publicación..."></textarea>
           <span class="save-indicator" id="save-indicator"></span>
         </div>
       </div>
+
     </div>
 
-
-    <!-- COLUMNA DERECHA: PREVIEW -->
+    <!-- COLUMNA DERECHA: PREVIEW INTERACTIVO -->
     <div class="card">
       <h2>Vista previa del post</h2>
+      
+      <!-- CONTROLES DE PREVIEW -->
+      <div class="preview-controls">
+        <div>
+          <label style="font-size:0.75rem;font-weight:600;color:var(--text-sub);display:block;margin-bottom:4px;">Ámbito / País:</label>
+          <select id="sel-preview-scope" onchange="onPreviewParamsChange()">
+            <option value="LATAM">🌎 Latinoamérica (Global)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.75rem;font-weight:600;color:var(--text-sub);display:block;margin-bottom:4px;">Tamaño del Top:</label>
+          <select id="sel-preview-top" onchange="onPreviewParamsChange()">
+            <option value="5">Top 5</option>
+            <option value="10" selected>Top 10</option>
+            <option value="15">Top 15</option>
+            <option value="20">Top 20</option>
+          </select>
+        </div>
+      </div>
+
       <div class="fb-card">
         <div class="fb-header">
           <div class="fb-avatar">R</div>
@@ -275,7 +366,7 @@
             <circle cx="8.5" cy="8.5" r="1.5"/>
             <path d="M21 15l-5-5L5 21"/>
           </svg>
-          <span>Cargando imagen del ranking...</span>
+          <span>Cargando imagen elástica del ranking...</span>
         </div>
         <img id="ranking-img" src="" alt="Ranking"
              style="display:none;width:100%;border-bottom:1px solid var(--fb-border);"
@@ -291,14 +382,24 @@
           <span>Compartir</span>
         </div>
       </div>
-      <p class="preview-note" id="preview-note"></p>
+      <p class="next-run" style="text-align:center;margin-top:12px;" id="preview-note"></p>
     </div>
 
   </div>
 
   <script>
     const API = '{{ CONTEXT_PATH }}';
-    const state = { config: {}, stats: null, savedText: '', hasSavedText: false };
+    const state = { config: {}, stats: null, savedText: '', hasSavedText: false, previewScope: 'LATAM', previewTopN: 10 };
+
+    const COUNTRY_FLAGS = {
+      'CO': '🇨🇴', 'MX': '🇲🇽', 'PE': '🇵🇪',
+      'AR': '🇦🇷', 'CL': '🇨🇱', 'EC': '🇪🇨',
+      'BO': '🇧🇴', 'VE': '🇻🇪', 'CR': '🇨🇷',
+      'PA': '🇵🇦', 'BR': '🇧🇷', 'CU': '🇨🇺',
+      'DO': '🇩🇴', 'GT': '🇬🇹', 'SV': '🇸🇻',
+      'HN': '🇭🇳', 'NI': '🇳🇮', 'PY': '🇵🇾',
+      'UY': '🇺🇾',
+    };
 
     function getCookie(name) {
       const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
@@ -313,27 +414,27 @@
     function autoDescription() {
       const config = state.config;
       const data = state.stats || { total_teams: '?', total_submissions: '?', teams_with_solved: '?' };
-      const competitionName  = config.competition_name  || 'Competencia RPC 2026';
-      const totalSubmissions = data.total_submissions   ?? '?';
-      const teamsWithSolved  = data.teams_with_solved   ?? '?';
-      const totalTeams       = data.total_teams         ?? '?';
-      const activatedBy      = config.activated_by      || '';
+      const competitionName  = config.competition_name || 'Competencia RPC 2026';
+      const totalSubmissions = data.total_submissions  ?? '?';
+      const teamsWithSolved  = data.teams_with_solved  ?? '?';
+      const totalTeams       = data.total_teams        ?? '?';
+      const activatedBy      = config.activated_by     || '';
 
-      let footer = '(Automatizado por rpc social stream';
+      const scope = state.previewScope;
+      const isLatam = (scope === 'LATAM');
+      const scopeTitle = isLatam ? `Top ${state.previewTopN} Latinoamérica` : `Top ${state.previewTopN} ${scope}`;
+
+      let footer = '(Automatizado por RPC Social Stream';
       if (activatedBy) footer += `, gracias ${activatedBy} por activarme :)`;
       footer += ')';
 
-      const nowCol = new Date(Date.now() - 5 * 3600 * 1000);
-      const finished = nowCol.getUTCHours() > 18 || (nowCol.getUTCHours() === 18 && nowCol.getUTCMinutes() >= 5);
-      const intro = finished
-        ? `Asi quedo la parte alta del tablero FINAL de la ${competitionName}.`
-        : `Asi va el tablero hasta ahora de la ${competitionName}.`;
+      const intro = `📊 Así va el ${scopeTitle} de la ${competitionName}:`;
 
       return (
-        `${intro} ` +
-        `Se realizaron en total ${totalSubmissions} envios, donde ${teamsWithSolved} equipos ` +
-        `(de ${totalTeams} en competencia) ` +
-        `#TodosSomosRPC #CreciendoTodosJuntos\n\n${footer}`
+        `${intro}\n\n` +
+        `📈 En la maratón se han registrado ${totalSubmissions} envíos totales, con ${teamsWithSolved} de ${totalTeams} equipos sumando problemas resueltos.\n\n` +
+        `¡Mucho éxito a todos los equipos competidores! 🚀💻\n` +
+        `#RPC #RedProgramacionCompetitiva #ProgramacionCompetitiva #TodosSomosRPC\n\n${footer}`
       );
     }
 
@@ -345,6 +446,20 @@
     function refreshPreviewText() {
       const text = currentText();
       document.getElementById('fb-body').textContent = text ? text : autoDescription();
+    }
+
+    function onPreviewParamsChange() {
+      state.previewScope = document.getElementById('sel-preview-scope').value;
+      state.previewTopN  = parseInt(document.getElementById('sel-preview-top').value) || 10;
+      loadRankingImage();
+      refreshPreviewText();
+    }
+
+    function loadRankingImage() {
+      const scope = state.previewScope;
+      const topN  = state.previewTopN;
+      const countryParam = (scope !== 'LATAM') ? `&country=${scope}` : '';
+      document.getElementById('ranking-img').src = `${API}/api/preview-image/?top_n=${topN}${countryParam}&t=${Date.now()}`;
     }
 
     let saveTimer = null;
@@ -364,7 +479,7 @@
           state.savedText = value;
           state.hasSavedText = value.trim().length > 0;
           indicator.className = 'save-indicator ok';
-          indicator.textContent = value.trim() ? 'Guardado' : 'Texto vacío — se publica el texto automático';
+          indicator.textContent = value.trim() ? 'Guardado' : 'Texto vacío — se usa plantilla por país';
         } else {
           indicator.className = 'save-indicator err';
           indicator.textContent = 'Error al guardar';
@@ -381,13 +496,69 @@
       saveTimer = setTimeout(saveText, 800);
     }
 
+    async function loadCountriesSelect() {
+      try {
+        const res = await fetch(`${API}/api/countries/`);
+        const data = await res.json();
+        const sel = document.getElementById('sel-preview-scope');
+        if (data.success && data.countries) {
+          let html = '<option value="LATAM">🌎 Latinoamérica (Global)</option>';
+          data.countries.forEach(c => {
+            if (c.code === 'UNKNOWN') return;
+            const flag = COUNTRY_FLAGS[c.code] || '🏳️';
+            html += `<option value="${c.code}">${flag} ${c.name} (${c.teams_count} equipos)</option>`;
+          });
+          sel.innerHTML = html;
+        }
+      } catch(e) {
+        console.warn('Error loading countries select:', e);
+      }
+    }
+
+    async function loadFirstSolutions() {
+      try {
+        const res = await fetch(`${API}/api/first-solutions/`);
+        const data = await res.json();
+        const list = document.getElementById('fs-list');
+        const badge = document.getElementById('fs-count-badge');
+
+        if (data.success && data.first_solutions) {
+          badge.textContent = `${data.total_solved} resueltos (${data.total_published} publicados)`;
+          if (data.first_solutions.length === 0) {
+            list.innerHTML = '<div style="font-size:0.8rem;color:var(--text-sub);padding:10px;text-align:center;">Sin problemas resueltos aún en la maratón.</div>';
+            return;
+          }
+
+          let html = '';
+          data.first_solutions.forEach(fs => {
+            const flag = COUNTRY_FLAGS[fs.country_code] || '';
+            const statusClass = fs.is_published ? 'published' : 'pending';
+            const statusText = fs.is_published ? '✓ Publicado' : '⏳ Detectado';
+            html += `
+              <div class="fs-item">
+                <div class="fs-letter" style="background:${fs.problem_color || '#CF1F4A'}">${fs.problem_letter}</div>
+                <div class="fs-info">
+                  <strong>${fs.team_name}</strong> ${flag} • ${fs.university || 'RPC'}
+                  <div style="font-size:0.75rem;color:var(--text-sub);">Min ${fs.time_minutes} con ${fs.language}</div>
+                </div>
+                <span class="fs-badge ${statusClass}">${statusText}</span>
+              </div>
+            `;
+          });
+          list.innerHTML = html;
+        }
+      } catch(e) {
+        console.warn('Error loading FS:', e);
+      }
+    }
+
     async function loadStatus() {
       try {
         const r = await fetch(`${API}/api/status/`);
         const d = await r.json();
         document.getElementById('dot-proceso').className = 'dot ' + (d.proceso_activo ? 'on' : 'off');
         document.getElementById('label-proceso').textContent = d.proceso_activo
-          ? 'Publicaciones activas'
+          ? 'Publicaciones automáticas activas'
           : 'Publicaciones detenidas';
 
         const btnStop = document.getElementById('btn-stop');
@@ -406,10 +577,8 @@
         }
         document.getElementById('btn-publish').disabled = false;
 
-        // Actualizar visual de inicio programado
         const badgeWrap = document.getElementById('schedule-badge-wrap');
         const btnCancel = document.getElementById('btn-cancel-schedule');
-        const inpDateTime = document.getElementById('inp-start-datetime');
 
         if (d.is_scheduled && d.scheduled_start) {
           badgeWrap.innerHTML = `<span style="background:var(--green-light);color:var(--green-text);padding:4px 10px;border-radius:12px;font-size:0.8rem;font-weight:600;display:inline-block;">⏰ Programado para: ${fmt(d.scheduled_start)}</span>`;
@@ -423,7 +592,6 @@
       }
     }
 
-    // Programar inicio
     document.getElementById('btn-schedule').addEventListener('click', async () => {
       const inp = document.getElementById('inp-start-datetime');
       const msg = document.getElementById('schedule-msg');
@@ -463,7 +631,6 @@
       }
     });
 
-    // Cancelar inicio programado
     document.getElementById('btn-cancel-schedule').addEventListener('click', async () => {
       const msg = document.getElementById('schedule-msg');
       try {
@@ -498,20 +665,23 @@
           state.hasSavedText = !!(state.config.publication_text || '').trim();
           refreshPreviewText();
         }
+        if (state.config.top_n_size) {
+          document.getElementById('sel-preview-top').value = state.config.top_n_size;
+          state.previewTopN = parseInt(state.config.top_n_size) || 10;
+        }
       } catch(_) {}
     }
 
-    async function loadPreview() {
-      const note = document.getElementById('preview-note');
+    async function loadPreviewStats() {
       try {
         const r = await fetch(`${API}/api/competition-stats/`);
         const stats = await r.json();
-        if (stats.error) throw new Error(stats.error);
-        state.stats = stats;
-        note.textContent = 'Vista previa con datos actuales de la competencia.';
+        if (!stats.error) {
+          state.stats = stats;
+          document.getElementById('preview-note').textContent = `Estadísticas: ${stats.total_submissions || 0} envíos, ${stats.accepted_submissions || 0} AC.`;
+        }
       } catch(e) {
         state.stats = null;
-        note.textContent = 'No se pudieron obtener datos. Mostrando ejemplo.';
       }
       refreshPreviewText();
     }
@@ -531,17 +701,17 @@
         const d = await r.json();
         if (r.ok) {
           msg.textContent = d.detail || 'Ciclo iniciado en segundo plano';
-          setTimeout(() => { loadStatus(); loadPreview(); }, 3000);
+          setTimeout(() => { loadStatus(); loadPreviewStats(); loadRankingImage(); loadFirstSolutions(); }, 3000);
         } else {
           msg.textContent = d.detail || 'Error al publicar';
           msg.className = 'err';
         }
       } catch(e) {
-        msg.textContent = 'Error de conexión con el servicio';
+        msg.textContent = 'Error de conexión';
         msg.className = 'err';
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Publicar ahora';
+        btn.textContent = 'Publicar rankings activos ahora';
       }
     });
 
@@ -573,23 +743,21 @@
       }
     });
 
-    function loadRankingImage() {
-      document.getElementById('ranking-img').src = `${API}/api/preview-image/?t=${Date.now()}`;
-    }
-
     async function init() {
       await loadConfig();
+      await loadCountriesSelect();
       document.getElementById('inp-text').addEventListener('input', onTextInput);
       loadStatus();
-      loadPreview();
+      loadPreviewStats();
       loadRankingImage();
+      loadFirstSolutions();
     }
 
     init();
     setInterval(loadStatus, 10000);
-    setInterval(loadPreview, 30000);
+    setInterval(loadFirstSolutions, 25000);
+    setInterval(loadPreviewStats, 30000);
     setInterval(loadRankingImage, 30000);
   </script>
 </body>
 </html>
-

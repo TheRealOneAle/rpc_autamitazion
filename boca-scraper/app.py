@@ -8,17 +8,25 @@ import requests
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
 
+from university_normalizer import (
+    normalize_university,
+    normalize_country_code,
+    get_country_name,
+    COUNTRY_NAMES,
+    TRUSTED_FLAGS,
+)
+
 app = Flask(__name__)
 
 _BASE_DEFAULT = os.environ.get("BOCA_URL", "https://redprogramacioncompetitiva.com/contests/2026/06")
 BOCA_USER = os.environ.get("BOCA_USER", "silux")
 BOCA_PASS = os.environ.get("BOCA_PASS", "ovallos.")
-CACHE_TTL = int(os.environ.get("CACHE_TTL", "60"))
+CACHE_TTL = int(os.environ.get("CACHE_TTL", "45"))
 
 # URL mutable en tiempo de ejecución (cambia con POST /config)
 _config = {"base": _BASE_DEFAULT}
 
-# Caché por contest: {contest_key: {"teams":..., "colors":..., "ts":...}}
+# Caché por contest: {contest_key: {"teams":..., "colors":..., "runs":..., "ts":...}}
 _caches = {}
 _lock = threading.Lock()
 
@@ -98,12 +106,11 @@ def _parse_year_contest_from_base(base):
 
 
 def _fetch_problems_from_db(year=None, contest=None):
-    """Opción 1: Consulta directa a la base de datos PostgreSQL de BOCA (problemtable) con nombre dinámico rpc_año_contest."""
+    """Opción 1: Consulta directa a la base de datos PostgreSQL de BOCA (problemtable)."""
     db_host = os.environ.get("BOCA_DB_HOST")
     if not db_host:
         return None
 
-    # Nombre dinámico de la BD: rpc_año_contest (ej: rpc_2026_06)
     if year and contest:
         target_db = f"rpc_{year}_{str(int(contest)).zfill(2)}"
     else:
@@ -158,19 +165,17 @@ def _fetch_problems_from_db(year=None, contest=None):
                             p_color = DEFAULT_COLORS[(p_num - 1) % len(DEFAULT_COLORS)]
                         problems.append((p_num, p_name, p_color))
                     if problems:
-                        print(f"[scraper] {len(problems)} problemas obtenidos desde BD BOCA ({db_name})", flush=True)
                         return problems
             finally:
                 conn.close()
         except Exception as e:
-            print(f"[scraper] aviso: error al conectar con BD BOCA ({db_name}): {e}", flush=True)
+            pass
 
     return None
 
 
-
 def _fetch_problems_from_admin(base):
-    """Opción 2: Scraping de la página de administración admin/problem.php de BOCA."""
+    """Opción 2: Scraping de admin/problem.php de BOCA."""
     try:
         session = requests.Session()
         session.get(f"{base}/index.php", timeout=15)
@@ -200,33 +205,26 @@ def _fetch_problems_from_admin(base):
                 continue
             p_num = int(p_num_text)
             if p_num == 0:
-                continue  # Problema general/fake 0
+                continue
             p_name = cells[1].get_text(strip=True) if len(cells) > 1 else chr(64 + p_num)
 
             color_cell = cells[-1]
             color = None
-            # 1. Input name="colorN"
             color_inp = color_cell.find("input", attrs={"name": re.compile(r"^color\d+$")})
             if color_inp and color_inp.get("value"):
                 color = color_inp["value"].strip()
-            # 2. Img title / alt
             if not color:
                 img = color_cell.find("img")
                 if img and img.get("title"):
                     color = img["title"].strip()
-            # 3. Input name="colornameN"
             if not color:
                 cname_inp = color_cell.find("input", attrs={"name": re.compile(r"^colorname\d+$")})
                 if cname_inp and cname_inp.get("value") and cname_inp["value"] != "Can be empty":
                     color = cname_inp["value"].strip()
 
-            norm_color = _normalize_color(color)
-            if not norm_color:
-                norm_color = DEFAULT_COLORS[(p_num - 1) % len(DEFAULT_COLORS)]
-
+            norm_color = _normalize_color(color) or DEFAULT_COLORS[(p_num - 1) % len(DEFAULT_COLORS)]
             problems.append((p_num, p_name, norm_color))
 
-        print(f"[scraper] {len(problems)} problemas obtenidos desde admin/problem.php", flush=True)
         return problems if problems else None
     except Exception as e:
         print(f"[scraper] advertencia: error al scrapear admin/problem.php: {e}", flush=True)
@@ -235,15 +233,13 @@ def _fetch_problems_from_admin(base):
 
 def _login_and_fetch(base):
     auth_candidates = [
-        (BOCA_USER, BOCA_PASS),
         ("board", ""),
+        (BOCA_USER, BOCA_PASS),
         ("score", ""),
     ]
 
     last_err = None
     for user, pwd in auth_candidates:
-        if not user and pwd is None:
-            continue
         try:
             session = requests.Session()
             session.get(f"{base}/index.php", timeout=15)
@@ -268,22 +264,18 @@ def _login_and_fetch(base):
     raise ValueError(f"No se pudo obtener la tabla de score para {base}: {last_err or 'No se encontraron tablas válidas'}")
 
 
-
 def _extract_color(cell):
     color = cell.get("bgcolor") or ""
     if not color:
-        m = re.search(
-            r"background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})", cell.get("style", "")
-        )
+        m = re.search(r"background(?:-color)?:\s*(#[0-9a-fA-F]{3,6})", cell.get("style", ""))
         color = m.group(1) if m else ""
     return _normalize_color(color) or None
 
 
 def _is_solved(cell_text):
-    # Boca usa formato "intentos/minutos" (ej: "1/84"). No resuelto: "", "-", "N/-"
-    if not cell_text or cell_text == "-":
+    if not cell_text or cell_text in ("-", "---", "\u2026"):
         return False
-    return bool(re.match(r"^\d+/\d+$", cell_text))
+    return bool(re.search(r"\d+/\d+", cell_text))
 
 
 def _parse_total(text):
@@ -306,10 +298,11 @@ def _parse(html):
     rows = table.find_all("tr")
 
     problem_colors = []
-    problem_col_start = 2  # índice donde comienza la primera columna de problema
+    problem_col_start = 2
     teams = []
-    seen_names = set()  # deduplicar: Boca repite cada fila en el HTML
+    seen_names = set()
     header_found = False
+    has_university_col = False
 
     for row in rows:
         cells = row.find_all(["td", "th"])
@@ -317,13 +310,15 @@ def _parse(html):
         if not texts:
             continue
 
-        if texts[0] == "#" and not header_found:
+        if texts[0] in ("#", "Pos", "Rank") and not header_found:
             header_found = True
             for col_idx, cell in enumerate(cells):
                 t = cell.get_text(strip=True)
+                if t.lower() in ("university", "universidad", "institucion", "institución"):
+                    has_university_col = True
                 if len(t) == 1 and t.isupper():
                     if not problem_colors:
-                        problem_col_start = col_idx  # primer problema en esta columna
+                        problem_col_start = col_idx
                     idx = len(problem_colors)
                     color = _extract_color(cell) or DEFAULT_COLORS[idx % len(DEFAULT_COLORS)]
                     problem_colors.append((idx + 1, t, color))
@@ -338,12 +333,23 @@ def _parse(html):
             continue
 
         name = texts[1] if len(texts) > 1 else ""
-        if name in seen_names:
+        if not name or name in seen_names:
             continue
         seen_names.add(name)
 
+        # Flag and country
         flag_img = cells[1].find("img") if len(cells) > 1 else None
-        country = flag_img.get("alt", "").strip() if flag_img else ""
+        raw_country = flag_img.get("alt", "").strip() if flag_img else ""
+        
+        # University extraction
+        raw_univ = ""
+        if has_university_col and len(texts) > 2:
+            raw_univ = texts[2]
+        
+        # Normalization
+        univ_info = normalize_university(raw_univ, existing_country=raw_country)
+        country_code = normalize_country_code(raw_country) or univ_info.get("country_code", "CO")
+        country_name = get_country_name(country_code)
 
         n = len(problem_colors)
         solved_problems = []
@@ -351,7 +357,7 @@ def _parse(html):
         for i in range(n):
             cidx = problem_col_start + i
             if cidx < len(texts) and _is_solved(texts[cidx]):
-                solved_problems.append(i + 1)  # 1-indexed
+                solved_problems.append(i + 1)
 
         n_solved, penalty = _parse_total(texts[-1] if texts else "")
         if n_solved is None:
@@ -359,16 +365,67 @@ def _parse(html):
             penalty = 0
 
         teams.append({
-            "pos": len(teams) + 1,  # posición 1-indexed en orden de aparición
+            "pos": len(teams) + 1,
             "usernumber": pos,
             "userfullname": name,
-            "country": country or None,
+            "university": raw_univ or univ_info["name"],
+            "university_normalized": univ_info["name"],
+            "university_acronym": univ_info["acronym"],
+            "country": country_code,
+            "country_name": country_name,
             "problemas_resueltos": n_solved,
             "points": penalty,
             "solved_problems": solved_problems,
         })
 
     return teams, problem_colors
+
+
+def _fetch_runs_from_boca(base):
+    """Obtiene los envíos en tiempo real desde admin/run.php."""
+    session = requests.Session()
+    session.get(f"{base}/index.php", timeout=15)
+    sid = session.cookies.get("PHPSESSID", "")
+    pass_hash = _hash(_hash(BOCA_PASS) + sid)
+    session.get(
+        f"{base}/index.php",
+        params={"name": BOCA_USER, "password": pass_hash},
+        timeout=15,
+    )
+    resp = session.get(f"{base}/admin/run.php", timeout=15)
+    resp.raise_for_status()
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    tables = soup.find_all("table")
+    if len(tables) < 3:
+        return []
+
+    table = tables[2]
+    rows = table.find_all("tr")
+    runs = []
+    for r in rows:
+        cells = [c.get_text(strip=True) for c in r.find_all(["td", "th"])]
+        if len(cells) >= 10 and cells[0].isdigit():
+            run_num = int(cells[0])
+            site = int(cells[1]) if cells[1].isdigit() else 1
+            user = cells[2]
+            time_min = int(cells[3]) if cells[3].isdigit() else 0
+            problem = cells[4].upper()
+            lang = cells[5]
+            verdict = cells[9]
+            is_solved = verdict.startswith("YES")
+
+            runs.append({
+                "run_number": run_num,
+                "site": site,
+                "username": user,
+                "time_minutes": time_min,
+                "letter": problem,
+                "language": lang,
+                "verdict": verdict,
+                "is_solved": is_solved,
+            })
+    return runs
 
 
 def _get_data(base, force_fresh=False):
@@ -378,7 +435,7 @@ def _get_data(base, force_fresh=False):
     if not force_fresh:
         with _lock:
             cache = _caches.get(key)
-            if cache is not None and now - cache["ts"] <= CACHE_TTL:
+            if cache is not None and now - cache.get("ts", 0) <= CACHE_TTL:
                 return cache["teams"], cache["colors"]
 
     try:
@@ -386,33 +443,104 @@ def _get_data(base, force_fresh=False):
         teams, color_list = _parse(html)
 
         year, contest = _parse_year_contest_from_base(base)
-        # Enriquecer colores usando BD BOCA (Opción 1) o admin/problem.php (Opción 2)
         admin_problems = _fetch_problems_from_db(year, contest) or _fetch_problems_from_admin(base)
         if admin_problems:
             color_list = admin_problems
 
         with _lock:
-            _caches[key] = {"teams": teams, "colors": color_list, "ts": time.time()}
+            _caches[key] = {
+                "teams": teams,
+                "colors": color_list,
+                "ts": time.time(),
+            }
         return teams, color_list
     except Exception as e:
         print(f"[scraper] error al obtener datos de {key}: {e}", flush=True)
         cache = _caches.get(key)
-        if cache is None:
-            raise
-        print(f"[scraper] usando datos en caché de {key} (posiblemente desactualizados)", flush=True)
-        return cache["teams"], cache["colors"]
+        if cache is not None:
+            return cache["teams"], cache["colors"]
+        raise
 
+
+def _get_runs_data(base, force_fresh=False):
+    key = _contest_key(base)
+    now = time.time()
+
+    if not force_fresh:
+        with _lock:
+            cache = _caches.get(key)
+            if cache is not None and "runs" in cache and now - cache.get("runs_ts", 0) <= CACHE_TTL:
+                return cache["runs"]
+
+    try:
+        runs = _fetch_runs_from_boca(base)
+        with _lock:
+            if key not in _caches:
+                _caches[key] = {}
+            _caches[key]["runs"] = runs
+            _caches[key]["runs_ts"] = time.time()
+        return runs
+    except Exception as e:
+        print(f"[scraper] error al obtener runs de {key}: {e}", flush=True)
+        with _lock:
+            cache = _caches.get(key)
+            if cache and "runs" in cache:
+                return cache["runs"]
+        return []
+
+
+def _filter_teams(teams, country_filter=None, univ_filter=None):
+    filtered = teams
+    if country_filter:
+        norm_c = normalize_country_code(country_filter)
+        if norm_c:
+            filtered = [t for t in filtered if t.get("country") == norm_c]
+        else:
+            c_low = country_filter.strip().lower()
+            filtered = [t for t in filtered if c_low in (t.get("country_name") or "").lower()]
+
+    if univ_filter:
+        u_low = univ_filter.strip().lower()
+        filtered = [
+            t for t in filtered
+            if u_low in (t.get("university_normalized") or "").lower()
+            or u_low in (t.get("university_acronym") or "").lower()
+            or u_low in (t.get("university") or "").lower()
+        ]
+
+    # Re-enumerar posición pos dentro del filtro manteniendo su usernumber
+    result = []
+    for idx, t in enumerate(filtered):
+        item = dict(t)
+        item["pos"] = idx + 1
+        result.append(item)
+    return result
+
+
+# ============================================================================
+# ENDPOINTS API
+# ============================================================================
 
 @app.route("/api/teams", methods=["GET"])
 def get_teams():
     try:
         base, _ = _base_from_request()
         teams, _ = _get_data(base)
+        country = request.args.get("country")
+        univ = request.args.get("university")
+        filtered = _filter_teams(teams, country, univ)
         rows = [
-            {"usernumber": t["usernumber"], "userfullname": t["userfullname"], "country": t["country"]}
-            for t in teams
+            {
+                "usernumber": t["usernumber"],
+                "userfullname": t["userfullname"],
+                "country": t["country"],
+                "country_name": t.get("country_name"),
+                "university": t.get("university_normalized"),
+                "university_acronym": t.get("university_acronym"),
+            }
+            for t in filtered
         ]
-        return jsonify({"success": True, "rows": rows})
+        return jsonify({"success": True, "rows": rows, "total": len(rows)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -422,7 +550,6 @@ def get_problems():
     try:
         base, _ = _base_from_request()
         year, contest = _parse_year_contest_from_base(base)
-        # 1. Consulta fresca directa de BD BOCA o admin
         fresh_problems = _fetch_problems_from_db(year, contest) or _fetch_problems_from_admin(base)
         if fresh_problems:
             colors = fresh_problems
@@ -432,15 +559,15 @@ def get_problems():
         rows = [
             {
                 "problemnumber": item[0],
+                "problemletter": chr(64 + item[0]),
                 "problemname": item[1] if len(item) > 1 else chr(64 + item[0]),
                 "problemcolor": item[2] if len(item) > 2 else item[1],
             }
             for item in colors
         ]
-        return jsonify({"success": True, "rows": rows})
+        return jsonify({"success": True, "rows": rows, "count": len(rows)})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 
 @app.route("/api/problems/count", methods=["GET"])
@@ -473,18 +600,39 @@ def get_ranking():
     try:
         base, key = _base_from_request()
         teams, colors = _get_data(base)
+
+        country = request.args.get("country")
+        univ = request.args.get("university")
+        top_n_param = request.args.get("top_n") or request.args.get("limit")
+        top_n = int(top_n_param) if top_n_param and top_n_param.isdigit() else 10
+
+        filtered = _filter_teams(teams, country, univ)
+        sliced = filtered[:top_n]
+
         rows = [
             {
                 "pos": t["pos"],
                 "userfullname": t["userfullname"],
                 "country": t["country"],
+                "country_name": t.get("country_name"),
+                "university": t.get("university_normalized"),
+                "university_acronym": t.get("university_acronym"),
                 "usernumber": t["usernumber"],
                 "problemas_resueltos": t["problemas_resueltos"],
                 "points": t["points"],
             }
-            for t in teams[:10]
+            for t in sliced
         ]
-        return jsonify({"success": True, "rows": rows, "cantidadProblemas": len(colors), "contest": key})
+        return jsonify({
+            "success": True,
+            "rows": rows,
+            "cantidadProblemas": len(colors),
+            "contest": key,
+            "top_n": top_n,
+            "filter_country": country,
+            "filter_university": univ,
+            "total_participating": len(filtered),
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -492,37 +640,249 @@ def get_ranking():
 @app.route("/api/ranking/full", methods=["GET"])
 def get_ranking_full():
     try:
-        base, _ = _base_from_request()
-        teams, _ = _get_data(base)
+        base, key = _base_from_request()
+        teams, colors = _get_data(base)
+
+        country = request.args.get("country")
+        univ = request.args.get("university")
+        filtered = _filter_teams(teams, country, univ)
+
         rows = [
             {
                 "pos": t["pos"],
                 "userfullname": t["userfullname"],
                 "country": t["country"],
+                "country_name": t.get("country_name"),
+                "university": t.get("university_normalized"),
+                "university_acronym": t.get("university_acronym"),
                 "usernumber": t["usernumber"],
                 "problemas_resueltos": t["problemas_resueltos"],
                 "points": t["points"],
             }
-            for t in teams
+            for t in filtered
         ]
-        return jsonify({"success": True, "rows": rows})
+        return jsonify({
+            "success": True,
+            "rows": rows,
+            "cantidadProblemas": len(colors),
+            "contest": key,
+            "total": len(rows),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/countries", methods=["GET"])
+def get_countries():
+    """Retorna los países presentes en el concurso actual con estadísticas de participación."""
+    try:
+        base, key = _base_from_request()
+        teams, _ = _get_data(base)
+
+        counts = {}
+        for t in teams:
+            c_code = t.get("country") or "UNKNOWN"
+            c_name = t.get("country_name") or get_country_name(c_code)
+            if c_code not in counts:
+                counts[c_code] = {"code": c_code, "name": c_name, "teams_count": 0}
+            counts[c_code]["teams_count"] += 1
+
+        countries_list = sorted(counts.values(), key=lambda x: (-x["teams_count"], x["name"]))
+        return jsonify({
+            "success": True,
+            "contest": key,
+            "countries": countries_list,
+            "total_countries": len(countries_list),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/universities", methods=["GET"])
+def get_universities():
+    """Retorna las universidades presentes en el concurso actual."""
+    try:
+        base, key = _base_from_request()
+        teams, _ = _get_data(base)
+        country = request.args.get("country")
+        filtered = _filter_teams(teams, country)
+
+        unis = {}
+        for t in filtered:
+            uname = t.get("university_normalized") or "Desconocida"
+            if uname not in unis:
+                unis[uname] = {
+                    "name": uname,
+                    "acronym": t.get("university_acronym", "N/A"),
+                    "country": t.get("country"),
+                    "country_name": t.get("country_name"),
+                    "teams_count": 0,
+                }
+            unis[uname]["teams_count"] += 1
+
+        uni_list = sorted(unis.values(), key=lambda x: (-x["teams_count"], x["name"]))
+        return jsonify({
+            "success": True,
+            "contest": key,
+            "universities": uni_list,
+            "total_universities": len(uni_list),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/runs", methods=["GET"])
+def get_runs():
+    """Retorna la lista de envíos de la competencia actual."""
+    try:
+        base, key = _base_from_request()
+        runs = _get_runs_data(base)
+        return jsonify({
+            "success": True,
+            "contest": key,
+            "runs": runs,
+            "total_runs": len(runs),
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/first-solutions", methods=["GET"])
+def get_first_solutions():
+    """Retorna el primer envío aceptado (First Solution) para cada problema de la maratón."""
+    try:
+        base, key = _base_from_request()
+        runs = _get_runs_data(base)
+        teams, colors = _get_data(base)
+
+        # Mapa de colores y nombres de problemas
+        color_map = {}
+        name_map = {}
+        for item in colors:
+            p_num = item[0]
+            letter = chr(64 + p_num)
+            p_name = item[1] if len(item) > 1 else letter
+            p_color = item[2] if len(item) > 2 else DEFAULT_COLORS[(p_num - 1) % len(DEFAULT_COLORS)]
+            color_map[letter] = p_color
+            name_map[letter] = p_name
+
+        # Mapa de equipos por username / userfullname
+        team_map = {}
+        for t in teams:
+            team_map[t["userfullname"].lower()] = t
+            team_map[f"team{t['usernumber']}"] = t
+
+        # Encontrar primer AC por letra
+        first_solutions = {}
+        for r in runs:
+            if r["is_solved"]:
+                let = r["letter"].upper()
+                curr_min = r["time_minutes"]
+                if let not in first_solutions or curr_min < first_solutions[let]["time_minutes"]:
+                    u_key = r["username"].lower()
+                    team_info = team_map.get(u_key, {})
+                    first_solutions[let] = {
+                        "problem_letter": let,
+                        "problem_name": name_map.get(let, let),
+                        "problem_color": color_map.get(let, DEFAULT_COLORS[0]),
+                        "run_number": r["run_number"],
+                        "username": r["username"],
+                        "team_name": team_info.get("userfullname") or r["username"],
+                        "university": team_info.get("university_normalized") or team_info.get("university") or "RPC",
+                        "university_acronym": team_info.get("university_acronym", "N/A"),
+                        "country_code": team_info.get("country") or "CO",
+                        "country_name": team_info.get("country_name") or "Latinoamérica",
+                        "time_minutes": curr_min,
+                        "language": r["language"],
+                        "verdict": r["verdict"],
+                    }
+
+        result = [first_solutions[k] for k in sorted(first_solutions.keys())]
+        return jsonify({
+            "success": True,
+            "contest": key,
+            "first_solutions": result,
+            "solved_problems_count": len(result),
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/api/stats", methods=["GET"])
 def get_stats():
+    """Retorna estadísticas completas y detalladas de la competencia."""
     try:
-        base, _ = _base_from_request()
-        teams, _ = _get_data(base)
+        base, key = _base_from_request()
+        teams, colors = _get_data(base)
+        runs = _get_runs_data(base)
+
         total_teams = len(teams)
         teams_with_solved = sum(1 for t in teams if t["problemas_resueltos"] > 0)
-        total_submissions = sum(len(t["solved_problems"]) for t in teams)
+        total_runs = len(runs)
+        total_ac = sum(1 for r in runs if r["is_solved"])
+        acceptance_rate = round((total_ac / total_runs * 100), 1) if total_runs > 0 else 0.0
+
+        # Estadísticas por problema
+        problem_stats = {}
+        for item in colors:
+            let = chr(64 + item[0])
+            problem_stats[let] = {
+                "letter": let,
+                "name": item[1] if len(item) > 1 else let,
+                "color": item[2] if len(item) > 2 else DEFAULT_COLORS[0],
+                "total_submissions": 0,
+                "accepted_submissions": 0,
+                "acceptance_rate": 0.0,
+                "first_solution": None,
+            }
+
+        verdicts_count = {}
+        languages_count = {}
+
+        for r in runs:
+            let = r["letter"].upper()
+            if let in problem_stats:
+                problem_stats[let]["total_submissions"] += 1
+                if r["is_solved"]:
+                    problem_stats[let]["accepted_submissions"] += 1
+                    curr_fs = problem_stats[let]["first_solution"]
+                    if curr_fs is None or r["time_minutes"] < curr_fs["time_minutes"]:
+                        problem_stats[let]["first_solution"] = {
+                            "username": r["username"],
+                            "time_minutes": r["time_minutes"],
+                            "language": r["language"],
+                        }
+
+            # Contar veredictos
+            v = r["verdict"]
+            v_clean = "Accepted (YES)" if r["is_solved"] else (v.replace("NO - ", "").strip() or "Other")
+            verdicts_count[v_clean] = verdicts_count.get(v_clean, 0) + 1
+
+            # Contar lenguajes
+            lang = r["language"] or "Unknown"
+            languages_count[lang] = languages_count.get(lang, 0) + 1
+
+        for let, stat in problem_stats.items():
+            tot = stat["total_submissions"]
+            ac = stat["accepted_submissions"]
+            stat["acceptance_rate"] = round((ac / tot * 100), 1) if tot > 0 else 0.0
+
+        # Problema más resuelto
+        sorted_by_ac = sorted(problem_stats.values(), key=lambda x: -x["accepted_submissions"])
+        most_solved = sorted_by_ac[0] if sorted_by_ac and sorted_by_ac[0]["accepted_submissions"] > 0 else None
+
         return jsonify({
             "success": True,
+            "contest": key,
             "total_teams": total_teams,
-            "total_submissions": total_submissions,
             "teams_with_solved": teams_with_solved,
+            "total_submissions": total_runs,
+            "accepted_submissions": total_ac,
+            "acceptance_rate": acceptance_rate,
+            "most_solved_problem": most_solved,
+            "problems": list(problem_stats.values()),
+            "verdicts": verdicts_count,
+            "languages": languages_count,
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -563,15 +923,15 @@ def set_config():
 
 
 def _warmup():
-    """Precalienta el caché al arrancar para que el primer request no espere."""
     import time as _t
-    _t.sleep(2)  # espera mínima a que Flask esté listo
+    _t.sleep(2)
     try:
         print("[warmup] precalentando caché...", flush=True)
         _get_data(_config["base"])
+        _get_runs_data(_config["base"])
         print("[warmup] caché listo", flush=True)
     except Exception as e:
-        print(f"[warmup] falló (se reintentará en el primer request): {e}", flush=True)
+        print(f"[warmup] falló: {e}", flush=True)
 
 
 threading.Thread(target=_warmup, daemon=True).start()

@@ -18,7 +18,7 @@ class SocialToken(models.Model):
 
 
 class SystemConfig(models.Model):
-    """Configuracion a nivel de sistema (infraestructura compartida)."""
+    """Configuración a nivel de sistema (infraestructura compartida)."""
     key = models.CharField(max_length=100, primary_key=True)
     value = models.TextField()
     updated_at = models.DateTimeField(auto_now=True)
@@ -28,7 +28,7 @@ class SystemConfig(models.Model):
 
 
 class UserConfig(models.Model):
-    """Configuracion por usuario (cada persona tiene sus propias variables)."""
+    """Configuración por usuario (cada persona tiene sus propias variables)."""
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='configs',
     )
@@ -56,6 +56,34 @@ class PublicationLog(models.Model):
     class Meta:
         db_table = 'publication_log'
         ordering = ['-executed_at']
+
+
+class FirstSolutionEvent(models.Model):
+    """Registro de eventos First Solution (primer envío aceptado por problema)."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='first_solution_events',
+    )
+    contest_key = models.CharField(max_length=50)
+    problem_letter = models.CharField(max_length=10)
+    problem_name = models.CharField(max_length=100, blank=True, default='')
+    problem_color = models.CharField(max_length=20, blank=True, default='#CF1F4A')
+    team_name = models.CharField(max_length=200)
+    university = models.CharField(max_length=200, blank=True, default='')
+    university_acronym = models.CharField(max_length=50, blank=True, default='')
+    country_code = models.CharField(max_length=10, blank=True, default='')
+    country_name = models.CharField(max_length=50, blank=True, default='')
+    time_minutes = models.IntegerField(default=0)
+    language = models.CharField(max_length=50, blank=True, default='')
+    published_at = models.DateTimeField(auto_now_add=True)
+    post_id = models.CharField(max_length=100, null=True, blank=True)
+    success = models.BooleanField(default=True)
+    error_message = models.TextField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'first_solution_event'
+        unique_together = (('contest_key', 'problem_letter'),)
+        ordering = ['time_minutes']
 
 
 class CoachSubscription(models.Model):

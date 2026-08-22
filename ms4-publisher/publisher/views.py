@@ -1,17 +1,21 @@
+import json
 import logging
 import requests as http_requests
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import SocialToken, SystemConfig, UserConfig, PublicationLog, CoachSubscription
+from .models import (
+    SocialToken, SystemConfig, UserConfig, PublicationLog,
+    CoachSubscription, FirstSolutionEvent,
+)
 from .serializers import (
     SocialTokenSerializer, SocialTokenWriteSerializer, UserConfigSerializer,
-    PublicationLogSerializer, CoachSubscriptionSerializer,
+    PublicationLogSerializer, CoachSubscriptionSerializer, FirstSolutionEventSerializer,
 )
 
 log = logging.getLogger(__name__)
@@ -23,6 +27,9 @@ USER_CONFIG_DEFAULTS = {
     'boca_year': '',
     'boca_contest': '',
     'activated_by': '',
+    'top_n_size': '10',
+    'active_rankings': '["LATAM"]',
+    'fs_auto_publish': 'true',
 }
 
 
@@ -69,13 +76,18 @@ def configuracion(request):
 
 @login_required
 def preview_image(request):
-    """Hace proxy de la imagen de ranking generada por MS2 para el contest del usuario."""
+    """Hace proxy de la imagen de ranking generada por MS2 para el contest del usuario, soportando país y top_n."""
     from .orchestrator import _bd_url
     ms2_url = _get_user_config(request.user, 'ms2_url') or settings.MS2_URL
     year, contest = _user_contest(request.user)
+
+    country = request.GET.get('country', '')
+    top_n_param = request.GET.get('top_n', '')
+    top_n = int(top_n_param) if top_n_param.isdigit() else 10
+
     try:
-        url = _bd_url(ms2_url, "/ranking.jpg", year, contest)
-        r = http_requests.get(url, timeout=10)
+        url = _bd_url(ms2_url, "/ranking.jpg", year, contest, country=country, top_n=top_n)
+        r = http_requests.get(url, timeout=12)
         r.raise_for_status()
         return HttpResponse(r.content, content_type="image/jpeg")
     except Exception as e:
@@ -86,7 +98,6 @@ def preview_image(request):
 def competition_stats(request):
     """Proxy de /api/stats de MS1 para el contest del usuario."""
     from .orchestrator import _bd_url
-    from django.http import JsonResponse
     ms1_url = _get_user_config(request.user, 'ms1_url') or settings.MS1_URL
     year, contest = _user_contest(request.user)
     try:
@@ -106,9 +117,15 @@ class StatusView(APIView):
 
         last_log = PublicationLog.objects.filter(user=request.user).first()
         proceso_activo = _get_user_config(request.user, 'proceso_activo', 'true')
+        top_n = _get_user_config(request.user, 'top_n_size', '10')
+        active_rankings = _get_user_config(request.user, 'active_rankings', '["LATAM"]')
+        fs_auto = _get_user_config(request.user, 'fs_auto_publish', 'true')
 
         return Response({
             "proceso_activo": proceso_activo == 'true',
+            "top_n_size": int(top_n) if top_n.isdigit() else 10,
+            "active_rankings": json.loads(active_rankings) if active_rankings.startswith('[') else ["LATAM"],
+            "fs_auto_publish": fs_auto == 'true',
             "scheduler_running": schedule_info.get("scheduler_running", False),
             "is_scheduled": schedule_info.get("is_scheduled", False),
             "scheduled_start": schedule_info.get("scheduled_start"),
@@ -116,6 +133,77 @@ class StatusView(APIView):
             "next_runs": schedule_info.get("next_runs", []),
             "last_log": PublicationLogSerializer(last_log).data if last_log else None,
         })
+
+
+class CountriesListView(APIView):
+    """Obtiene la lista de países presentes en la competencia actual."""
+    def get(self, request):
+        from .orchestrator import _bd_url
+        ms1_url = _get_user_config(request.user, 'ms1_url') or settings.MS1_URL
+        year, contest = _user_contest(request.user)
+        try:
+            r = http_requests.get(_bd_url(ms1_url, "/api/countries", year, contest), timeout=10)
+            if r.status_code == 200:
+                return Response(r.json())
+            return Response({"success": False, "countries": []}, status=r.status_code)
+        except Exception as e:
+            return Response({"success": False, "error": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+class FirstSolutionsListView(APIView):
+    """Obtiene las First Solutions de la competencia y el historial de publicaciones."""
+    def get(self, request):
+        from .orchestrator import _bd_url
+        ms1_url = _get_user_config(request.user, 'ms1_url') or settings.MS1_URL
+        year, contest = _user_contest(request.user)
+        contest_key = f"{year}/{contest}"
+
+        # 1. First solutions en vivo desde scraper
+        live_solutions = []
+        try:
+            r = http_requests.get(_bd_url(ms1_url, "/api/first-solutions", year, contest), timeout=10)
+            if r.status_code == 200:
+                live_solutions = r.json().get("first_solutions", [])
+        except Exception as e:
+            log.warning(f"Error consultando first solutions en vivo: {e}")
+
+        # 2. Eventos registrados en BD
+        db_events = FirstSolutionEvent.objects.filter(contest_key=contest_key)
+        db_map = {e.problem_letter: FirstSolutionEventSerializer(e).data for e in db_events}
+
+        # Combinar
+        merged = []
+        for sol in live_solutions:
+            let = sol.get("problem_letter", "")
+            is_published = let in db_map and db_map[let].get("success") and db_map[let].get("post_id")
+            merged.append({
+                **sol,
+                "is_published": bool(is_published),
+                "post_id": db_map[let].get("post_id") if let in db_map else None,
+                "published_at": db_map[let].get("published_at") if let in db_map else None,
+            })
+
+        return Response({
+            "success": True,
+            "contest": contest_key,
+            "first_solutions": merged,
+            "total_solved": len(merged),
+            "total_published": len([m for m in merged if m.get("is_published")]),
+        })
+
+
+class PublishFirstSolutionTriggerView(APIView):
+    """Dispara manualmente la publicación de un First Solution."""
+    def post(self, request):
+        from .orchestrator import publish_first_solution_event
+        fs_data = request.data.get("fs_data")
+        if not fs_data or not isinstance(fs_data, dict):
+            return Response({"error": "fs_data es requerido como objeto"}, status=status.HTTP_400_BAD_REQUEST)
+
+        ok, result = publish_first_solution_event(fs_data, user=request.user)
+        if ok:
+            return Response({"success": True, "post_id": result})
+        return Response({"success": False, "error": result}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ScheduleStartView(APIView):
@@ -126,7 +214,7 @@ class ScheduleStartView(APIView):
 
     def post(self, request):
         from .scheduler import schedule_publication, BOGOTA_TZ
-        from datetime import datetime, time
+        from datetime import datetime
 
         start_str = str(request.data.get('start_time', '')).strip()
         end_str = str(request.data.get('end_time', '')).strip()
@@ -137,7 +225,6 @@ class ScheduleStartView(APIView):
         now = datetime.now(BOGOTA_TZ)
 
         try:
-            # Soportar formato ISO completo "2026-08-20T14:30" o solo hora "14:30"
             if 'T' in start_str or '-' in start_str:
                 start_dt = datetime.fromisoformat(start_str)
                 if start_dt.tzinfo is None:
@@ -166,7 +253,6 @@ class ScheduleStartView(APIView):
             except Exception as e:
                 log.warning(f"Error parseando end_time: {e}")
 
-        # Guardar en UserConfig
         UserConfig.objects.update_or_create(user=request.user, key='proceso_activo', defaults={'value': 'true'})
         UserConfig.objects.update_or_create(user=request.user, key='scheduled_start_time', defaults={'value': start_dt.isoformat()})
 
@@ -181,7 +267,6 @@ class ScheduleStartView(APIView):
 
 
 class WhitelistView(APIView):
-    """Gestión de correos autorizados para iniciar sesión con Google."""
     def get(self, request):
         from .models import AllowedEmail
         from .serializers import AllowedEmailSerializer
@@ -211,7 +296,6 @@ class WhitelistView(APIView):
 
 
 class WhitelistDeleteView(APIView):
-    """Elimina o desactiva un correo de la whitelist."""
     def delete(self, request, email_id):
         from .models import AllowedEmail
         try:
@@ -242,11 +326,7 @@ class TriggerView(APIView):
         t.start()
 
         cutoff = get_cutoff()
-        if started:
-            msg = f"Ciclo iniciado. Publicación final programada para las {cutoff.strftime('%H:%M')}"
-        else:
-            msg = f"Scheduler ya corriendo. Publicación final a las {cutoff.strftime('%H:%M')}"
-
+        msg = f"Ciclo iniciado. Publicación final a las {cutoff.strftime('%H:%M')}"
         return Response({"detail": msg, "cutoff": cutoff.isoformat()}, status=status.HTTP_202_ACCEPTED)
 
 
@@ -262,7 +342,11 @@ class LogsView(APIView):
 
 
 class ConfigView(APIView):
-    ALLOWED_KEYS = {'competition_name', 'publication_text', 'proceso_activo', 'activated_by', 'scheduled_start_time'}
+    ALLOWED_KEYS = {
+        'competition_name', 'publication_text', 'proceso_activo',
+        'activated_by', 'scheduled_start_time', 'top_n_size',
+        'active_rankings', 'fs_auto_publish',
+    }
 
     def get(self, request):
         _ensure_user_defaults(request.user)
@@ -275,8 +359,9 @@ class ConfigView(APIView):
         for key, value in request.data.items():
             if key not in self.ALLOWED_KEYS:
                 return Response({"detail": f"Clave no permitida: {key}"}, status=status.HTTP_400_BAD_REQUEST)
+            val_str = json.dumps(value) if isinstance(value, (list, dict)) else str(value)
             obj, _ = UserConfig.objects.update_or_create(
-                user=request.user, key=key, defaults={"value": str(value)}
+                user=request.user, key=key, defaults={"value": val_str}
             )
             updated.append(UserConfigSerializer(obj).data)
         return Response(updated)
@@ -301,17 +386,17 @@ class TokenView(APIView):
 class BocaConfigView(APIView):
     def get(self, request):
         _ensure_user_defaults(request.user)
-        year    = _get_user_config(request.user, 'boca_year', '')
+        year = _get_user_config(request.user, 'boca_year', '')
         contest = _get_user_config(request.user, 'boca_contest', '')
         return Response({"year": year, "contest": contest})
 
     def put(self, request):
-        year    = str(request.data.get('year', '')).strip()
+        year = str(request.data.get('year', '')).strip()
         contest = str(request.data.get('contest', '')).strip()
         if not year or not contest:
             return Response({"error": "year y contest son requeridos"}, status=status.HTTP_400_BAD_REQUEST)
 
-        UserConfig.objects.update_or_create(user=request.user, key='boca_year',    defaults={'value': year})
+        UserConfig.objects.update_or_create(user=request.user, key='boca_year', defaults={'value': year})
         UserConfig.objects.update_or_create(user=request.user, key='boca_contest', defaults={'value': str(int(contest)).zfill(2)})
 
         return Response({"year": year, "contest": str(int(contest)).zfill(2)})

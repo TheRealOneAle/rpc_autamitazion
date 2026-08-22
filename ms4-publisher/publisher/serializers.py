@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import SocialToken, SystemConfig, UserConfig, PublicationLog, CoachSubscription
+from .models import (
+    SocialToken, SystemConfig, UserConfig, PublicationLog,
+    CoachSubscription, AllowedEmail, FirstSolutionEvent,
+)
 
 
 class SocialTokenSerializer(serializers.ModelSerializer):
@@ -32,6 +35,16 @@ class PublicationLogSerializer(serializers.ModelSerializer):
         fields = ['id', 'executed_at', 'status', 'post_id', 'error_message', 'competition_data']
 
 
+class FirstSolutionEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FirstSolutionEvent
+        fields = [
+            'id', 'contest_key', 'problem_letter', 'problem_name', 'problem_color',
+            'team_name', 'university', 'university_acronym', 'country_code', 'country_name',
+            'time_minutes', 'language', 'published_at', 'post_id', 'success', 'error_message',
+        ]
+
+
 class CoachSubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = CoachSubscription
@@ -42,7 +55,5 @@ class AllowedEmailSerializer(serializers.ModelSerializer):
     added_by_username = serializers.ReadOnlyField(source='added_by.username')
 
     class Meta:
-        from .models import AllowedEmail
         model = AllowedEmail
         fields = ['id', 'email', 'is_active', 'created_at', 'added_by_username']
-
