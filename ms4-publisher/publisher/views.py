@@ -87,7 +87,7 @@ def preview_image(request):
 
     try:
         url = _bd_url(ms2_url, "/ranking.jpg", year, contest, country=country, top_n=top_n)
-        r = http_requests.get(url, timeout=12)
+        r = http_requests.get(url, timeout=35)
         r.raise_for_status()
         return HttpResponse(r.content, content_type="image/jpeg")
     except Exception as e:
@@ -101,7 +101,7 @@ def competition_stats(request):
     ms1_url = _get_user_config(request.user, 'ms1_url') or settings.MS1_URL
     year, contest = _user_contest(request.user)
     try:
-        r = http_requests.get(_bd_url(ms1_url, "/api/stats", year, contest), timeout=10)
+        r = http_requests.get(_bd_url(ms1_url, "/api/stats", year, contest), timeout=35)
         r.raise_for_status()
         return JsonResponse(r.json())
     except Exception as e:
@@ -142,7 +142,7 @@ class CountriesListView(APIView):
         ms1_url = _get_user_config(request.user, 'ms1_url') or settings.MS1_URL
         year, contest = _user_contest(request.user)
         try:
-            r = http_requests.get(_bd_url(ms1_url, "/api/countries", year, contest), timeout=10)
+            r = http_requests.get(_bd_url(ms1_url, "/api/countries", year, contest), timeout=35)
             if r.status_code == 200:
                 return Response(r.json())
             return Response({"success": False, "countries": []}, status=r.status_code)
@@ -161,7 +161,7 @@ class FirstSolutionsListView(APIView):
         # 1. First solutions en vivo desde scraper
         live_solutions = []
         try:
-            r = http_requests.get(_bd_url(ms1_url, "/api/first-solutions", year, contest), timeout=10)
+            r = http_requests.get(_bd_url(ms1_url, "/api/first-solutions", year, contest), timeout=35)
             if r.status_code == 200:
                 live_solutions = r.json().get("first_solutions", [])
         except Exception as e:

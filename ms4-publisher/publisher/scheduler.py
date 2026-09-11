@@ -66,7 +66,7 @@ def _check_first_solutions_job():
 
             # Consultar First Solutions de boca-scraper
             url = f"{ms1_url}/api/first-solutions?contest={year}%2F{contest}"
-            r = requests.get(url, timeout=12)
+            r = requests.get(url, timeout=30)
             if r.status_code != 200:
                 continue
 

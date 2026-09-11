@@ -556,10 +556,21 @@
     document.getElementById('inp-boca-contest').addEventListener('input', updateBocaPreview);
 
     async function loadCountriesCheckboxes(selectedList) {
+      const container = document.getElementById('countries-checkbox-list');
       try {
+        if (!container.querySelector('.rank-checkbox[value]:not([value="LATAM"])')) {
+          container.innerHTML = `
+            <label class="checkbox-tile">
+              <input type="checkbox" class="rank-checkbox" value="LATAM" ${selectedList.includes('LATAM') ? 'checked' : ''}>
+              <span>🌎 Top Latinoamérica</span>
+            </label>
+            <div id="countries-loading-hint" style="font-size:0.8rem;color:var(--text-sub);padding:8px;grid-column:1/-1;">
+              ⏳ Obteniendo países participantes de BOCA...
+            </div>
+          `;
+        }
         const res = await fetch(`${API}/api/countries/`);
         const data = await res.json();
-        const container = document.getElementById('countries-checkbox-list');
         
         let html = `
           <label class="checkbox-tile">
@@ -568,7 +579,7 @@
           </label>
         `;
 
-        if (data.success && data.countries) {
+        if (data.success && data.countries && data.countries.length > 0) {
           data.countries.forEach(c => {
             if (c.code === 'UNKNOWN') return;
             const flag = COUNTRY_FLAGS[c.code] || '🏳️';
@@ -580,10 +591,27 @@
               </label>
             `;
           });
+        } else if (!data.success) {
+          html += `
+            <div style="font-size:0.8rem;color:var(--red);padding:6px;grid-column:1/-1;">
+              ⚠️ No se pudieron cargar los países: ${data.error || 'Error al conectar con BOCA'}.
+              <button type="button" onclick="loadCountriesCheckboxes(state.activeRankings)" style="margin-left:8px;padding:3px 8px;font-size:0.75rem;cursor:pointer;border-radius:4px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);">Reintentar</button>
+            </div>
+          `;
         }
         container.innerHTML = html;
       } catch(e) {
         console.warn('Error loading countries:', e);
+        container.innerHTML = `
+          <label class="checkbox-tile">
+            <input type="checkbox" class="rank-checkbox" value="LATAM" ${selectedList.includes('LATAM') ? 'checked' : ''}>
+            <span>🌎 Top Latinoamérica</span>
+          </label>
+          <div style="font-size:0.8rem;color:var(--red);padding:6px;grid-column:1/-1;">
+            ⚠️ Error de conexión al cargar países.
+            <button type="button" onclick="loadCountriesCheckboxes(state.activeRankings)" style="margin-left:8px;padding:3px 8px;font-size:0.75rem;cursor:pointer;border-radius:4px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);">Reintentar</button>
+          </div>
+        `;
       }
     }
 

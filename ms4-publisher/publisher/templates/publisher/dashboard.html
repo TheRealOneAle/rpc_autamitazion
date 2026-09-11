@@ -515,11 +515,11 @@
     }
 
     async function loadCountriesSelect() {
+      const sel = document.getElementById('sel-preview-scope');
       try {
         const res = await fetch(`${API}/api/countries/`);
         const data = await res.json();
-        const sel = document.getElementById('sel-preview-scope');
-        if (data.success && data.countries) {
+        if (data.success && data.countries && data.countries.length > 0) {
           let html = '<option value="LATAM">🌎 Latinoamérica (Global)</option>';
           data.countries.forEach(c => {
             if (c.code === 'UNKNOWN') return;
@@ -527,6 +527,8 @@
             html += `<option value="${c.code}">${flag} ${c.name} (${c.teams_count} equipos)</option>`;
           });
           sel.innerHTML = html;
+        } else if (!data.success) {
+          console.warn('Could not load countries:', data.error);
         }
       } catch(e) {
         console.warn('Error loading countries select:', e);
