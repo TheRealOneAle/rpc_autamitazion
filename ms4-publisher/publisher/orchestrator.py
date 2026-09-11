@@ -217,7 +217,7 @@ def publish_first_solution_event(fs_data: dict, user=None):
         log.info(f"[FS] First Solution para problema {letter} ya fue publicado previamente (post_id={existing.post_id}).")
         return True, f"Ya publicado (post_id={existing.post_id})"
 
-    ms3_url = _get_config("ms3_url") or settings.MS3_URL
+    ms3_url = _get_config("ms3_url") or getattr(settings, 'MS3_URL', 'http://generarglobos:5000')
 
     # 1. Obtener imagen de tarjeta First Solution
     image_bytes = None

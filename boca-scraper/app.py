@@ -518,6 +518,65 @@ def _get_runs_data(base, force_fresh=False):
         return []
 
 
+def _fetch_users_map_from_boca(base):
+    """Obtiene el mapa de usuarios desde admin/user.php con nombre de competencia, universidad y país."""
+    try:
+        session = requests.Session()
+        session.get(f"{base}/index.php", timeout=15)
+        sid = session.cookies.get("PHPSESSID", "")
+        pass_hash = _hash(_hash(BOCA_PASS) + sid)
+        session.get(
+            f"{base}/index.php",
+            params={"name": BOCA_USER, "password": pass_hash},
+            timeout=15,
+        )
+        resp = session.get(f"{base}/admin/user.php", timeout=15)
+        if resp.status_code != 200:
+            return {}
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        tables = soup.find_all("table")
+        user_map = {}
+        for table in tables:
+            for r in table.find_all("tr"):
+                cells = [c.get_text(strip=True) for c in r.find_all(["td", "th"])]
+                if len(cells) >= 13 and cells[0].isdigit() and cells[4].lower() == "team":
+                    u_name = cells[2].lower()
+                    full_name = cells[10]
+                    univ = cells[11]
+                    country = cells[12]
+                    user_map[u_name] = {
+                        "userfullname": full_name,
+                        "university": univ,
+                        "country": country,
+                    }
+        return user_map
+    except Exception as e:
+        print(f"[scraper] advertencia al obtener admin/user.php: {e}", flush=True)
+        return {}
+
+
+def _get_users_map(base, force_fresh=False):
+    key = _contest_key(base)
+    now = time.time()
+    if not force_fresh:
+        with _lock:
+            cache = _caches.get(key)
+            if cache is not None and "users_map" in cache and now - cache.get("users_ts", 0) <= CACHE_TTL:
+                return cache["users_map"]
+
+    users_map = _fetch_users_map_from_boca(base)
+    with _lock:
+        if key not in _caches:
+            _caches[key] = {}
+        if users_map:
+            _caches[key]["users_map"] = users_map
+            _caches[key]["users_ts"] = time.time()
+        else:
+            users_map = _caches[key].get("users_map", {})
+    return users_map
+
+
 def _filter_teams(teams, country_filter=None, univ_filter=None):
     filtered = teams
     if country_filter:
@@ -795,11 +854,15 @@ def get_first_solutions():
             color_map[letter] = p_color
             name_map[letter] = p_name
 
-        # Mapa de equipos por username / userfullname
+        # Mapa de usuarios desde admin/user.php (datos oficiales de registro)
+        users_map = _get_users_map(base)
+
+        # Mapa de equipos por username / userfullname desde el scoreboard
         team_map = {}
         for t in teams:
             team_map[t["userfullname"].lower()] = t
             team_map[f"team{t['usernumber']}"] = t
+            team_map[str(t["usernumber"])] = t
 
         # Encontrar primer AC por letra
         first_solutions = {}
@@ -809,18 +872,30 @@ def get_first_solutions():
                 curr_min = r["time_minutes"]
                 if let not in first_solutions or curr_min < first_solutions[let]["time_minutes"]:
                     u_key = r["username"].lower()
+                    u_info = users_map.get(u_key, {})
                     team_info = team_map.get(u_key, {})
+                    if not team_info and u_info.get("userfullname"):
+                        team_info = team_map.get(u_info["userfullname"].lower(), {})
+
+                    # Priorizar nombre de competencia oficial
+                    team_display_name = u_info.get("userfullname") or team_info.get("userfullname") or r["username"]
+                    raw_univ = u_info.get("university") or team_info.get("university") or ""
+                    country_code = u_info.get("country") or team_info.get("country") or "CO"
+
+                    univ_info = normalize_university(raw_univ, existing_country=country_code)
+                    univ_display = raw_univ or univ_info.get("name") or "RPC"
+
                     first_solutions[let] = {
                         "problem_letter": let,
                         "problem_name": name_map.get(let, let),
                         "problem_color": color_map.get(let, DEFAULT_COLORS[0]),
                         "run_number": r["run_number"],
                         "username": r["username"],
-                        "team_name": team_info.get("userfullname") or r["username"],
-                        "university": team_info.get("university_normalized") or team_info.get("university") or "RPC",
-                        "university_acronym": team_info.get("university_acronym", "N/A"),
-                        "country_code": team_info.get("country") or "CO",
-                        "country_name": team_info.get("country_name") or "Latinoamérica",
+                        "team_name": team_display_name,
+                        "university": univ_display,
+                        "university_acronym": univ_info.get("acronym", "N/A"),
+                        "country_code": country_code,
+                        "country_name": get_country_name(country_code),
                         "time_minutes": curr_min,
                         "language": r["language"],
                         "verdict": r["verdict"],

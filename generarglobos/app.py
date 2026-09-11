@@ -39,16 +39,41 @@ def _generate_balloon(letter, output_path, color_hex):
     result.save(output_path)
 
 
-def _generate_first_solution_card(letter, team_name, university, time_minutes, language, color_hex, output_path):
-    """Renders a graphical micro-card for a First Solution event."""
+def _truncate_text(text, font, max_w):
+    if not text:
+        return ""
+    bbox = font.getbbox(text)
+    if bbox[2] - bbox[0] <= max_w:
+        return text
+    while len(text) > 3:
+        text = text[:-1]
+        bbox = font.getbbox(text + "...")
+        if bbox[2] - bbox[0] <= max_w:
+            return text + "..."
+    return text
+
+
+def _get_font(bold=False, size=20):
+    from PIL import ImageFont
+    base = os.path.dirname(__file__)
+    font_file = 'arialbd.ttf' if bold else 'arial.ttf'
+    font_path = os.path.join(base, 'fonts', font_file)
+    if os.path.exists(font_path):
+        try:
+            return ImageFont.truetype(font_path, size=size)
+        except Exception:
+            pass
+    return ImageFont.load_default(size=size)
+
+
+def _generate_first_solution_card(letter, team_name, university, time_minutes, language, color_hex, output_path, problem_name=None):
+    """Renders a high-definition (1200x630) graphical micro-card for a First Solution event."""
     from PIL import Image, ImageDraw, ImageFont
 
-    w, h = 800, 420
-    bg_color = (24, 28, 36)  # Dark sleek background
-    card = Image.new('RGB', (w, h), bg_color)
+    w, h = 1200, 630
+    card = Image.new('RGB', (w, h), (15, 23, 42))  # Sleek dark slate
     draw = ImageDraw.Draw(card)
 
-    # Accent top border with problem color
     color_clean = color_hex.lstrip('#')
     if len(color_clean) == 3:
         color_clean = f"{color_clean[0]*2}{color_clean[1]*2}{color_clean[2]*2}"
@@ -58,41 +83,71 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     except Exception:
         prob_rgb = (207, 31, 74)
 
-    draw.rectangle([(0, 0), (w, 8)], fill=prob_rgb)
+    red_color = (239, 68, 68)  # Clean vivid red #EF4444
 
-    # Card inner container
-    draw.rounded_rectangle([(30, 25), (w - 30, h - 25)], radius=12, fill=(33, 38, 48), outline=(50, 58, 70), width=1)
+    # Accent top border in red
+    draw.rectangle([(0, 0), (w, 8)], fill=red_color)
 
-    # Header badge
-    draw.rounded_rectangle([(55, 45), (320, 85)], radius=6, fill=prob_rgb)
-    draw.text((65, 52), "🎈 FIRST SOLUTION 🎈", fill=(255, 255, 255))
+    # Inner container
+    draw.rounded_rectangle([(35, 30), (w - 35, h - 30)], radius=24, fill=(30, 41, 59), outline=(51, 65, 85), width=2)
 
-    # Problem letter and title
-    draw.text((55, 105), f"PROBLEMA {letter.upper()}", fill=(255, 255, 255))
-    
-    # Team Name
-    draw.text((55, 160), f"Equipo: {team_name}", fill=(240, 240, 240))
+    font_fs = _get_font(bold=True, size=32)
+    font_prob = _get_font(bold=True, size=74)
+    font_label = _get_font(bold=True, size=20)
+    font_team = _get_font(bold=True, size=38)
+    font_univ = _get_font(bold=False, size=26)
+    font_stats = _get_font(bold=True, size=22)
+    font_footer = _get_font(bold=False, size=18)
 
-    # University
+    # 1. "FIRST SOLUTION" en rojo
+    draw.text((80, 75), "FIRST SOLUTION", font=font_fs, fill=red_color)
+
+    # 2. Letra del problema en rojo: "PROBLEMA {letter}"
+    let_str = letter.upper()
+    draw.text((80, 125), f"PROBLEMA {let_str}", font=font_prob, fill=red_color)
+
+    # 3. "Equipo" y nombre del equipo de competencia
+    draw.text((80, 235), "Equipo", font=font_label, fill=(148, 163, 184))
+    disp_team = _truncate_text(team_name, font_team, 730)
+    draw.text((80, 268), disp_team, font=font_team, fill=(255, 255, 255))
+
+    # 4. Universidad abajo del nombre del equipo
     if university and university != "Desconocida":
-        draw.text((55, 210), f"Universidad: {university}", fill=(180, 190, 205))
+        disp_univ = _truncate_text(university, font_univ, 730)
+        draw.text((80, 325), disp_univ, font=font_univ, fill=(203, 213, 225))
 
-    # Time and language info
-    draw.text((55, 265), f"Minuto {time_minutes}  •  Lenguaje: {language}", fill=(130, 210, 150))
+    # 5. Stats Pill (tiempo y lenguaje)
+    draw.rounded_rectangle([(80, 415), (750, 475)], radius=12, fill=(15, 23, 42), outline=(51, 65, 85), width=2)
+    stats_text = f"Minuto {time_minutes}   |   Lenguaje: {language}"
+    draw.text((105, 433), stats_text, font=font_stats, fill=(56, 189, 248))
 
-    # Footer
-    draw.text((55, 335), "#RedProgramacionCompetitiva  #RPC", fill=(120, 130, 145))
+    # 6. Hashtags
+    draw.text((80, 530), "#RedProgramacionCompetitiva   #RPC   #FirstSolution", font=font_footer, fill=(100, 116, 139))
 
-    # Insert Balloon graphic on the right
-    globo_path = os.path.join(GLOBOS_DIR, f"{letter.upper()}.png")
+    # 6. Balloon Graphic with Letter
+    globo_path = os.path.join(GLOBOS_DIR, f"{let_str}.png")
     if not os.path.exists(globo_path):
-        _generate_balloon(letter.upper(), globo_path, color_hex)
+        _generate_balloon(let_str, globo_path, color_hex)
 
     if os.path.exists(globo_path):
         try:
             balloon = Image.open(globo_path).convert('RGBA')
-            balloon = balloon.resize((150, 200), Image.Resampling.LANCZOS)
-            card.paste(balloon, (w - 220, 100), balloon)
+            bw, bh = 240, 426
+            balloon = balloon.resize((bw, bh), Image.Resampling.LANCZOS)
+
+            # Draw prominent letter on balloon
+            bdraw = ImageDraw.Draw(balloon)
+            bfont = _get_font(bold=True, size=76)
+            bbox_bl = bfont.getbbox(let_str)
+            blw = bbox_bl[2] - bbox_bl[0]
+            blh = bbox_bl[3] - bbox_bl[1]
+            cx = bw // 2
+            cy = int(bh * 0.28)
+            blx = cx - blw // 2 - bbox_bl[0]
+            bly = cy - blh // 2 - bbox_bl[1]
+            bdraw.text((blx, bly), let_str, font=bfont, fill=(255, 255, 255), stroke_width=4, stroke_fill=(0, 0, 0))
+
+            card.paste(balloon, (w - 360, 100), balloon)
         except Exception as e:
             print(f"[warn] paste balloon failed: {e}", flush=True)
 
@@ -175,11 +230,13 @@ def first_solution_card():
     language = data.get('language') or data.get('lang') or 'C++'
     color = data.get('problem_color') or data.get('color') or FALLBACK_COLORS.get(letter, '#CF1F4A')
 
+    prob_name = data.get('problem_name') or f"Problema {letter}"
+
     card_name = f"fs_{letter}_{abs(hash(team_name)) % 10000}.png"
     card_path = os.path.join(CARDS_DIR, card_name)
 
     try:
-        _generate_first_solution_card(letter, team_name, university, time_min, language, color, card_path)
+        _generate_first_solution_card(letter, team_name, university, time_min, language, color, card_path, problem_name=prob_name)
         return send_file(card_path, mimetype='image/png')
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

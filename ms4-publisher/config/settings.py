@@ -103,6 +103,7 @@ def _to_url(val, default):
 
 MS1_URL = _to_url(os.environ.get('MS1_URL'), 'http://boca-scraper:3001')
 MS2_URL = _to_url(os.environ.get('MS2_URL'), 'http://generartabla:5002')
+MS3_URL = _to_url(os.environ.get('MS3_URL'), 'http://generarglobos:5000')
 
 LOGGING = {
     'version': 1,

@@ -92,6 +92,7 @@ services:
       - POSTGRES_PORT=5432
       - MS1_URL=http://boca-scraper:3001
       - MS2_URL=http://generartabla:5002
+      - MS3_URL=http://generarglobos:5000
       - FORCE_SCRIPT_NAME=/facebook-table/publisher
       - SECRET_KEY=${MS4_SECRET_KEY:-}
       - DEBUG=True
@@ -107,6 +108,7 @@ services:
       - ms4-postgres
       - boca-scraper
       - generartabla
+      - generarglobos
     restart: unless-stopped
 
 

@@ -50,21 +50,31 @@ def build_description(user, competition_data: dict, final: bool = False, scope: 
         return saved_text
 
     competition_name = _get_config(user, "competition_name", "Competencia RPC 2026")
-    total_submissions = competition_data.get("total_submissions", 0)
-    teams_with_solved = competition_data.get("teams_with_solved", 0)
-    total_teams = competition_data.get("total_teams", 0)
+    total_submissions = competition_data.get("total_submissions", 0) if isinstance(competition_data, dict) else 0
+    teams_with_solved = competition_data.get("teams_with_solved", 0) if isinstance(competition_data, dict) else 0
+    total_teams = competition_data.get("total_teams", 0) if isinstance(competition_data, dict) else 0
     activated_by = _get_config(user, "activated_by", "")
+
+    # Ajustar top efectivo si la tabla tiene menos equipos que el top_n configurado
+    teams_list = []
+    if isinstance(competition_data, dict):
+        teams_list = competition_data.get("teams", [])
+    elif isinstance(user, dict):
+        teams_list = user.get("teams", [])
+
+    actual_teams_count = len(teams_list) if isinstance(teams_list, list) else 0
+    effective_top = min(top_n, actual_teams_count) if actual_teams_count > 0 else top_n
 
     # Ámbito / País
     is_latam = (scope.upper() in ('LATAM', 'GLOBAL', 'ALL', ''))
     if is_latam:
-        scope_title = f"Top {top_n} Latinoamérica"
+        scope_title = f"Top {effective_top} Latinoamérica"
         scope_hashtag = "#Latinoamerica"
     else:
         c_code = scope.upper()
         c_name = COUNTRY_NAMES.get(c_code, scope)
         flag = COUNTRY_FLAGS.get(c_code, "")
-        scope_title = f"Top {top_n} {c_name} {flag}".strip()
+        scope_title = f"Top {effective_top} {c_name} {flag}".strip()
         scope_hashtag = f"#{c_name.replace(' ', '')}"
 
     if final or _contest_finished():

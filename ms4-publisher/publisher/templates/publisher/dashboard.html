@@ -55,7 +55,7 @@
     }
 
     .topbar {
-      max-width: 1080px;
+      max-width: 1200px;
       margin: 0 auto 20px;
       display: flex;
       align-items: flex-start;
@@ -88,12 +88,12 @@
 
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      max-width: 1080px;
+      grid-template-columns: 1fr 1.3fr;
+      gap: 24px;
+      max-width: 1200px;
       margin: 0 auto;
     }
-    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
 
     .card {
       background: var(--card-bg);
@@ -315,13 +315,18 @@
 
       <!-- TEXTO MANUAL -->
       <div class="card">
-        <h2>Texto de la publicación</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+          <h2 style="margin:0;">Texto de la publicación</h2>
+          <button type="button" onclick="restoreDefaultText()" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:0.8rem;font-weight:600;padding:4px 8px;border-radius:6px;" title="Cargar plantilla automática">
+            ↺ Restaurar plantilla por defecto
+          </button>
+        </div>
         <p class="next-run" style="margin-bottom:10px;">
           Se guarda automáticamente. Si está vacío, se utiliza la plantilla inteligente por país/LATAM.
         </p>
         <div class="field">
           <label for="inp-text">Mensaje personalizado</label>
-          <textarea id="inp-text" placeholder="Escribe aquí el texto de la publicación..."></textarea>
+          <textarea id="inp-text" rows="8" placeholder="Escribe aquí el texto de la publicación..."></textarea>
           <span class="save-indicator" id="save-indicator"></span>
         </div>
       </div>
@@ -430,12 +435,24 @@
 
       const intro = `📊 Así va el ${scopeTitle} de la ${competitionName}:`;
 
+      const statsLine = (data && data.total_submissions && Number(data.total_submissions) > 0)
+        ? `\n\n📈 En la maratón se han registrado ${totalSubmissions} envíos totales, con ${teamsWithSolved} de ${totalTeams} equipos sumando problemas resueltos.`
+        : '';
+
       return (
-        `${intro}\n\n` +
-        `📈 En la maratón se han registrado ${totalSubmissions} envíos totales, con ${teamsWithSolved} de ${totalTeams} equipos sumando problemas resueltos.\n\n` +
+        `${intro}${statsLine}\n\n` +
         `¡Mucho éxito a todos los equipos competidores! 🚀💻\n` +
-        `#RPC #RedProgramacionCompetitiva #ProgramacionCompetitiva #TodosSomosRPC\n\n${footer}`
+        `#RPC #RedProgramacionCompetitiva #ProgramacionCompetitiva #Latinoamerica #TodosSomosRPC #CreciendoTodosJuntos\n\n${footer}`
       );
+    }
+
+    function restoreDefaultText() {
+      state.isCustom = false;
+      const el = document.getElementById('inp-text');
+      el.value = autoDescription();
+      state.savedText = el.value;
+      refreshPreviewText();
+      saveText();
     }
 
     function currentText() {
@@ -491,6 +508,7 @@
     }
 
     function onTextInput() {
+      state.isCustom = true;
       refreshPreviewText();
       clearTimeout(saveTimer);
       saveTimer = setTimeout(saveText, 800);
@@ -660,9 +678,17 @@
         document.getElementById('fb-page-name').textContent = state.config.competition_name || 'RPC Competencia';
         const el = document.getElementById('inp-text');
         if (document.activeElement !== el) {
-          el.value = state.config.publication_text || '';
-          state.savedText = state.config.publication_text || '';
-          state.hasSavedText = !!(state.config.publication_text || '').trim();
+          if (state.config.publication_text && state.config.publication_text.trim()) {
+            el.value = state.config.publication_text;
+            state.savedText = state.config.publication_text;
+            state.hasSavedText = true;
+            state.isCustom = true;
+          } else {
+            state.isCustom = false;
+            el.value = autoDescription();
+            state.savedText = el.value;
+            state.hasSavedText = false;
+          }
           refreshPreviewText();
         }
         if (state.config.top_n_size) {
@@ -679,6 +705,11 @@
         if (!stats.error) {
           state.stats = stats;
           document.getElementById('preview-note').textContent = `Estadísticas: ${stats.total_submissions || 0} envíos, ${stats.accepted_submissions || 0} AC.`;
+          const el = document.getElementById('inp-text');
+          if (!state.isCustom && document.activeElement !== el) {
+            el.value = autoDescription();
+            state.savedText = el.value;
+          }
         }
       } catch(e) {
         state.stats = null;

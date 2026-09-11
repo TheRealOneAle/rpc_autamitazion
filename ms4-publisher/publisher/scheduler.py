@@ -90,10 +90,15 @@ def _check_first_solutions_job():
                 if not exists:
                     log.info(f"[SENSOR FS] ¡Nuevo First Solution detectado para problema {letter} por {fs.get('team_name')}!")
                     print(f"[SENSOR FS] ¡Nuevo First Solution detectado para problema {letter} por {fs.get('team_name')}!")
-                    publish_first_solution_event(fs, user=user)
+                    try:
+                        publish_first_solution_event(fs, user=user)
+                    except Exception as fs_err:
+                        log.exception(f"[SENSOR FS] Error al procesar publicación de problema {letter}: {fs_err}")
+                        print(f"[SENSOR FS] Error al procesar publicación de problema {letter}: {fs_err}")
 
         except Exception as e:
-            log.debug(f"[SENSOR FS] Error en polling para {user.username}: {e}")
+            log.exception(f"[SENSOR FS] Error en polling para {user.username}: {e}")
+            print(f"[SENSOR FS] Error en polling para {user.username}: {e}")
 
 
 def start_publication_cycle(custom_cutoff=None):
