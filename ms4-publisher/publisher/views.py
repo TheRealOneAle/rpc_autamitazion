@@ -364,6 +364,18 @@ class ConfigView(APIView):
                 user=request.user, key=key, defaults={"value": val_str}
             )
             updated.append(UserConfigSerializer(obj).data)
+
+        if 'top_n_size' in request.data:
+            import re
+            new_top = str(request.data['top_n_size']).strip()
+            if new_top.isdigit():
+                pub_obj = UserConfig.objects.filter(user=request.user, key='publication_text').first()
+                if pub_obj and pub_obj.value:
+                    new_val = re.sub(r'\bTop\s+\d+\b', f'Top {new_top}', pub_obj.value, flags=re.IGNORECASE)
+                    if new_val != pub_obj.value:
+                        pub_obj.value = new_val
+                        pub_obj.save()
+                        updated.append(UserConfigSerializer(pub_obj).data)
         return Response(updated)
 
 

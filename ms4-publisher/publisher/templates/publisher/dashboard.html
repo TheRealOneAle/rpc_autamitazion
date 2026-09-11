@@ -467,9 +467,32 @@
 
     function onPreviewParamsChange() {
       state.previewScope = document.getElementById('sel-preview-scope').value;
-      state.previewTopN  = parseInt(document.getElementById('sel-preview-top').value) || 10;
-      loadRankingImage();
+      const newTopN      = parseInt(document.getElementById('sel-preview-top').value) || 10;
+      const topChanged   = (state.previewTopN !== newTopN);
+      state.previewTopN  = newTopN;
+
+      const el = document.getElementById('inp-text');
+      if (!state.isCustom) {
+        el.value = autoDescription();
+        state.savedText = el.value;
+      } else {
+        el.value = el.value.replace(/\bTop\s+\d+\b/gi, `Top ${state.previewTopN}`);
+        state.savedText = el.value;
+      }
+
       refreshPreviewText();
+      loadRankingImage();
+
+      if (topChanged) {
+        saveText();
+        try {
+          fetch(`${API}/api/config/`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ top_n_size: String(state.previewTopN) }),
+          });
+        } catch(_) {}
+      }
     }
 
     function loadRankingImage() {
@@ -678,11 +701,20 @@
         const cfgs = await r.json();
         cfgs.forEach(c => { state.config[c.key] = c.value; });
         document.getElementById('fb-page-name').textContent = state.config.competition_name || 'RPC Competencia';
+
+        if (state.config.top_n_size) {
+          const tSize = parseInt(state.config.top_n_size) || 10;
+          state.previewTopN = tSize;
+          const selTop = document.getElementById('sel-preview-top');
+          if (selTop) selTop.value = String(tSize);
+        }
+
         const el = document.getElementById('inp-text');
         if (document.activeElement !== el) {
           if (state.config.publication_text && state.config.publication_text.trim()) {
-            el.value = state.config.publication_text;
-            state.savedText = state.config.publication_text;
+            const syncedText = state.config.publication_text.replace(/\bTop\s+\d+\b/gi, `Top ${state.previewTopN}`);
+            el.value = syncedText;
+            state.savedText = syncedText;
             state.hasSavedText = true;
             state.isCustom = true;
           } else {
@@ -692,10 +724,6 @@
             state.hasSavedText = false;
           }
           refreshPreviewText();
-        }
-        if (state.config.top_n_size) {
-          document.getElementById('sel-preview-top').value = state.config.top_n_size;
-          state.previewTopN = parseInt(state.config.top_n_size) || 10;
         }
       } catch(_) {}
     }

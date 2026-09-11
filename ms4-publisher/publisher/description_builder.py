@@ -45,10 +45,6 @@ def _contest_finished() -> bool:
 
 def build_description(user, competition_data: dict, final: bool = False, scope: str = 'LATAM', top_n: int = 10) -> str:
     """Genera la descripción de publicación para un ranking (LATAM o país específico)."""
-    saved_text = _get_config(user, "publication_text", "").strip()
-    if saved_text and scope == 'LATAM':
-        return saved_text
-
     competition_name = _get_config(user, "competition_name", "Competencia RPC 2026")
     total_submissions = competition_data.get("total_submissions", 0) if isinstance(competition_data, dict) else 0
     teams_with_solved = competition_data.get("teams_with_solved", 0) if isinstance(competition_data, dict) else 0
@@ -64,6 +60,11 @@ def build_description(user, competition_data: dict, final: bool = False, scope: 
 
     actual_teams_count = len(teams_list) if isinstance(teams_list, list) else 0
     effective_top = min(top_n, actual_teams_count) if actual_teams_count > 0 else top_n
+
+    saved_text = _get_config(user, "publication_text", "").strip()
+    if saved_text and scope == 'LATAM':
+        import re
+        return re.sub(r'\bTop\s+\d+\b', f'Top {effective_top}', saved_text, flags=re.IGNORECASE)
 
     # Ámbito / País
     is_latam = (scope.upper() in ('LATAM', 'GLOBAL', 'ALL', ''))

@@ -139,6 +139,7 @@ def _build_elastic_css(top_n=10, row_count=10):
         table_width = "95%"
         flag_size = "26px"
         page_height = "1300px"
+        prob_w = "42px"
     elif row_count <= 10:
         th_pad = "10px 6px"
         td_pad = "7px 5px"
@@ -147,6 +148,7 @@ def _build_elastic_css(top_n=10, row_count=10):
         table_width = "97%"
         flag_size = "22px"
         page_height = "1650px"
+        prob_w = "36px"
     elif row_count <= 15:
         th_pad = "8px 4px"
         td_pad = "5px 4px"
@@ -155,6 +157,7 @@ def _build_elastic_css(top_n=10, row_count=10):
         table_width = "98%"
         flag_size = "19px"
         page_height = "1950px"
+        prob_w = "32px"
     else:  # top 20+
         th_pad = "6px 3px"
         td_pad = "3px 3px"
@@ -163,6 +166,7 @@ def _build_elastic_css(top_n=10, row_count=10):
         table_width = "99%"
         flag_size = "16px"
         page_height = "2250px"
+        prob_w = "28px"
 
     return f"""
 @page {{ size: 1100px {page_height}; margin: 0; }}
@@ -211,11 +215,32 @@ td {{
     padding: {td_pad};
     border-bottom: 1px solid #eaeaea;
 }}
+.col-num {{
+    text-align: center;
+    font-weight: 700;
+    font-size: {pts_font};
+    width: 36px;
+}}
+.col-team {{
+    width: auto;
+}}
+.col-prob {{
+    width: {prob_w};
+    max-width: {prob_w};
+    text-align: center;
+    padding: 2px !important;
+}}
+.col-total {{
+    text-align: center;
+    white-space: nowrap;
+    font-weight: 700;
+    font-size: {pts_font};
+    width: 85px;
+}}
 .numequipo {{
     text-align: center;
     font-weight: 700;
     font-size: {pts_font};
-    width: 32px;
 }}
 .puntos {{
     text-align: center;
@@ -245,7 +270,7 @@ tr:nth-child(even) {{ background-color: #fafbfc; }}
     font-size: {team_font};
     font-weight: 600;
     color: #2c3e50;
-    max-width: 320px;
+    max-width: 480px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -264,7 +289,7 @@ tr:nth-child(even) {{ background-color: #fafbfc; }}
 
 
 def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoamérica", globos_dir='/app/globosgenerados', top_n=10):
-    headers = "".join(f"<th>{chr(65 + i)}</th>" for i in range(cantidadProblemas))
+    headers = "".join(f'<th class="col-prob">{chr(65 + i)}</th>' for i in range(cantidadProblemas))
     rows_html = ""
     row_count = len(rows)
     balloon_size = 30 if row_count <= 5 else (25 if row_count <= 10 else (20 if row_count <= 15 else 17))
@@ -283,9 +308,9 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
         for j in range(cantidadProblemas):
             solved = (i < len(problemasTeam) and j < len(problemasTeam[i]) and problemasTeam[i][j] == 1)
             if solved:
-                problemasHtml += f'<td class="problemTeam">{_globo_img_html(globos_dir, j, balloon_size=balloon_size)}</td>'
+                problemasHtml += f'<td class="problemTeam col-prob">{_globo_img_html(globos_dir, j, balloon_size=balloon_size)}</td>'
             else:
-                problemasHtml += '<td style="text-align:center;color:#ccc;">-</td>'
+                problemasHtml += '<td class="problemTeam col-prob" style="text-align:center;color:#ccc;">-</td>'
 
         pos_display = r.get("pos", i + 1)
         country = (r.get("country") or "").upper()
@@ -297,8 +322,8 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
 
         rows_html += f"""
     <tr {style}>
-        <td class="numequipo">{pos_display}</td>
-        <td>
+        <td class="numequipo col-num">{pos_display}</td>
+        <td class="col-team">
             <div class="team-col">
                 {flag_html}
                 <div>
@@ -308,7 +333,7 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
             </div>
         </td>
         {problemasHtml}
-        <td class="puntos">{r['problemas_resueltos']} ({r['points']})</td>
+        <td class="puntos col-total">{r['problemas_resueltos']} ({r['points']})</td>
     </tr>"""
 
     css = _build_elastic_css(top_n=top_n, row_count=row_count)
@@ -320,7 +345,7 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
     <h2>{titulo}</h2>
 </div>
 <table>
-<tr><th>#</th><th>Equipo</th>{headers}<th>Total</th></tr>
+<tr><th class="col-num">#</th><th class="col-team">Equipo</th>{headers}<th class="col-total">Total</th></tr>
 {rows_html}
 </table>
 </body>
