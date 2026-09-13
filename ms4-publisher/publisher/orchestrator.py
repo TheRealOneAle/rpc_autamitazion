@@ -49,7 +49,8 @@ def _user_contest_params(user):
     return year, str(int(contest)).zfill(2)
 
 
-def _bd_url(base, path, year, contest, country=None, top_n=None):
+def _bd_url(base, path, year, contest, country=None, top_n=None, rpc_name=None, datetime_str=None):
+    import urllib.parse
     url = f"{base}{path}"
     params = []
     if year and contest:
@@ -58,6 +59,10 @@ def _bd_url(base, path, year, contest, country=None, top_n=None):
         params.append(f"country={country}")
     if top_n:
         params.append(f"top_n={top_n}")
+    if rpc_name:
+        params.append(f"rpc_name={urllib.parse.quote(str(rpc_name))}")
+    if datetime_str:
+        params.append(f"datetime_str={urllib.parse.quote(str(datetime_str))}")
 
     if params:
         url += ("&" if "?" in url else "?") + "&".join(params)
@@ -127,6 +132,19 @@ def _publish_for_user(user, final=False, force=False):
         log.warning(f"[ORQ] {user_label}: no se pudieron obtener stats generales: {e}")
         competition_data = {"total_teams": 0, "total_submissions": 0, "teams_with_solved": 0}
 
+    # Metadatos del contest para registro e imágenes
+    contest_num = str(int(contest)).zfill(2)
+    rpc_name = f"RPC {contest_num}"
+    contest_key = f"{year}/{contest_num}"
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        BOGOTA_TZ = ZoneInfo('America/Bogota')
+    except ImportError:
+        from datetime import timezone, timedelta
+        BOGOTA_TZ = timezone(timedelta(hours=-5))
+    datetime_str = datetime.now(BOGOTA_TZ).strftime("%d/%m/%Y %H:%M")
+
     # Publicar secuencialmente cada ranking seleccionado
     for idx, scope in enumerate(active_rankings):
         try:
@@ -146,9 +164,9 @@ def _publish_for_user(user, final=False, force=False):
                 "teams": teams_scope,
             }
 
-            # 2. Generar imagen
-            _fetch_with_retry("post", _bd_url(ms2_url, "/generate", year, contest, country=scope, top_n=top_n))
-            r_img = _fetch_with_retry("get", _bd_url(ms2_url, "/ranking.jpg", year, contest, country=scope, top_n=top_n))
+            # 2. Generar imagen (incluyendo rpc_name y datetime_str)
+            _fetch_with_retry("post", _bd_url(ms2_url, "/generate", year, contest, country=scope, top_n=top_n, rpc_name=rpc_name, datetime_str=datetime_str))
+            r_img = _fetch_with_retry("get", _bd_url(ms2_url, "/ranking.jpg", year, contest, country=scope, top_n=top_n, rpc_name=rpc_name, datetime_str=datetime_str))
             image_bytes = r_img.content
 
             # 3. Construir descripción
@@ -169,7 +187,25 @@ def _publish_for_user(user, final=False, force=False):
                 competition_data={
                     "scope": scope,
                     "top_n": top_n,
+                    "rpc_name": rpc_name,
                     **scope_competition_data,
+                },
+            )
+            from .models import ExecutionLog
+            ExecutionLog.objects.create(
+                user=user,
+                contest_key=contest_key,
+                rpc_name=rpc_name,
+                pub_type="TOP",
+                level="SUCCESS",
+                category="PUBLICATION",
+                message=f"🚀 Publicado con éxito: Top {top_n} {scope} en Facebook.",
+                post_id=post_id,
+                details={
+                    "scope": scope,
+                    "top_n": top_n,
+                    "post_id": post_id,
+                    "rpc_name": rpc_name,
                 },
             )
             log.info(f"[ORQ] {user_label}: '{scope}' publicado exitosamente. post_id={post_id}")
@@ -187,6 +223,17 @@ def _publish_for_user(user, final=False, force=False):
                 status="ERROR",
                 error_message=f"[{scope}] {e}",
                 competition_data=competition_data,
+            )
+            from .models import ExecutionLog
+            ExecutionLog.objects.create(
+                user=user,
+                contest_key=contest_key,
+                rpc_name=rpc_name,
+                pub_type="TOP",
+                level="ERROR",
+                category="PUBLICATION",
+                message=f"❌ Error al publicar Top {top_n} '{scope}': {e}",
+                details={"error": str(e), "scope": scope, "rpc_name": rpc_name},
             )
 
 
@@ -208,8 +255,27 @@ def publish_first_solution_event(fs_data: dict, user=None):
         return False, "Sin token de Facebook"
 
     year, contest = _user_contest_params(target_user)
-    contest_key = f"{year}/{contest}"
+    contest_num = str(int(contest)).zfill(2)
+    contest_key = f"{year}/{contest_num}"
+    rpc_name = f"RPC {contest_num}"
     letter = fs_data.get("problem_letter", "A").upper()
+
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        BOGOTA_TZ = ZoneInfo('America/Bogota')
+    except ImportError:
+        from datetime import timezone, timedelta
+        BOGOTA_TZ = timezone(timedelta(hours=-5))
+    datetime_str = datetime.now(BOGOTA_TZ).strftime("%d/%m/%Y %H:%M")
+
+    fs_payload = {
+        **fs_data,
+        "rpc_name": rpc_name,
+        "datetime_str": datetime_str,
+        "year": year,
+        "contest": contest,
+    }
 
     # Verificar si ya está registrado
     existing = FirstSolutionEvent.objects.filter(contest_key=contest_key, problem_letter=letter).first()
@@ -223,7 +289,7 @@ def publish_first_solution_event(fs_data: dict, user=None):
     image_bytes = None
     try:
         card_url = f"{ms3_url}/card/first-solution"
-        r_card = requests.post(card_url, json=fs_data, timeout=15)
+        r_card = requests.post(card_url, json=fs_payload, timeout=15)
         if r_card.status_code == 200:
             image_bytes = r_card.content
     except Exception as e:
@@ -278,6 +344,25 @@ def publish_first_solution_event(fs_data: dict, user=None):
                 "error_message": None,
             }
         )
+        from .models import ExecutionLog
+        ExecutionLog.objects.create(
+            user=target_user,
+            contest_key=contest_key,
+            rpc_name=rpc_name,
+            pub_type="FIRST_SOLUTION",
+            level="SUCCESS",
+            category="FIRST_SOLUTION",
+            message=f"🎈 Publicado con éxito: First Solution Problema {letter} por '{fs_data.get('team_name', '')}' ({fs_data.get('university', 'RPC')}).",
+            post_id=post_id,
+            details={
+                "problem_letter": letter,
+                "team_name": fs_data.get("team_name", ""),
+                "university": fs_data.get("university", ""),
+                "time_minutes": fs_data.get("time_minutes", 0),
+                "post_id": post_id,
+                "rpc_name": rpc_name,
+            }
+        )
         print(f"[FS] ¡First Solution Problema {letter} publicado exitosamente! post_id={post_id}")
         return True, post_id
 
@@ -297,6 +382,17 @@ def publish_first_solution_event(fs_data: dict, user=None):
                 "success": False,
                 "error_message": str(e),
             }
+        )
+        from .models import ExecutionLog
+        ExecutionLog.objects.create(
+            user=target_user,
+            contest_key=contest_key,
+            rpc_name=rpc_name,
+            pub_type="FIRST_SOLUTION",
+            level="ERROR",
+            category="FIRST_SOLUTION",
+            message=f"❌ Error al publicar First Solution Problema {letter}: {e}",
+            details={"error": str(e), "problem_letter": letter, "rpc_name": rpc_name}
         )
         return False, str(e)
 

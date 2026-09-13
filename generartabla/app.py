@@ -36,12 +36,21 @@ COUNTRY_NAMES = {
 
 
 def _contest_params():
-    """Devuelve (year, contest, country, university, top_n) desde query params."""
-    year = (request.args.get("year") or "").strip()
-    contest = (request.args.get("contest") or "").strip()
-    country = (request.args.get("country") or "").strip()
-    univ = (request.args.get("university") or "").strip()
-    top_n_raw = (request.args.get("top_n") or request.args.get("limit") or "").strip()
+    """Devuelve (year, contest, country, university, top_n, rpc_name, datetime_str) desde query params o JSON body."""
+    data = {}
+    try:
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+    except Exception:
+        data = {}
+
+    year = str(request.args.get("year") or data.get("year") or "").strip()
+    contest = str(request.args.get("contest") or data.get("contest") or "").strip()
+    country = str(request.args.get("country") or data.get("country") or "").strip()
+    univ = str(request.args.get("university") or data.get("university") or "").strip()
+    top_n_raw = str(request.args.get("top_n") or request.args.get("limit") or data.get("top_n") or "").strip()
+    rpc_name = str(request.args.get("rpc_name") or data.get("rpc_name") or "").strip()
+    datetime_str = str(request.args.get("datetime_str") or data.get("datetime_str") or "").strip()
 
     if "/" in contest:
         parts = contest.split("/")
@@ -49,7 +58,25 @@ def _contest_params():
         contest = parts[1].strip()
 
     top_n = int(top_n_raw) if top_n_raw.isdigit() and int(top_n_raw) > 0 else 10
-    return year, contest, country, univ, top_n
+
+    if not rpc_name:
+        if contest:
+            c_clean = ''.join(c for c in str(contest) if c.isdigit())
+            rpc_name = f"RPC {str(int(c_clean)).zfill(2)}" if c_clean else "RPC"
+        else:
+            rpc_name = "RPC"
+
+    if not datetime_str:
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+            bogota_tz = ZoneInfo('America/Bogota')
+        except ImportError:
+            from datetime import timezone, timedelta
+            bogota_tz = timezone(timedelta(hours=-5))
+        datetime_str = datetime.now(bogota_tz).strftime("%d/%m/%Y %H:%M")
+
+    return year, contest, country, univ, top_n, rpc_name, datetime_str
 
 
 def _file_key(year, contest, country=None, univ=None, top_n=10):
@@ -177,23 +204,83 @@ html, body {{
     padding: 15px;
     box-sizing: border-box;
 }}
-.cabecera {{
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 15px;
-    margin-bottom: 5px;
+.cabecera-wrap {{
+    width: 100%;
+    margin: 0 auto 12px auto;
+    text-align: center;
 }}
-.logorpc {{ width: 140px; }}
-.cabecera h2 {{
+.cabecera-tabla {{
+    display: inline-table;
+    border-collapse: collapse;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+    width: auto !important;
+}}
+.cabecera-tabla td {{
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+    vertical-align: middle;
+}}
+.cabecera-td-logo {{
+    padding-right: 22px !important;
+    vertical-align: middle;
+}}
+.cabecera-td-textos {{
+    text-align: left;
+    vertical-align: middle;
+}}
+.logorpc {{
+    width: 135px;
+    display: block;
+}}
+.cabecera-titulo {{
     color: #1a1a1a;
     font-size: 1.7rem;
-    font-weight: 700;
-    margin: 0;
+    font-weight: 800;
+    margin: 0 0 6px 0;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    line-height: 1.2;
+    white-space: nowrap;
 }}
-table {{
+.cabecera-meta {{
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
+    white-space: nowrap;
+}}
+.rpc-badge {{
+    display: inline-block;
+    background-color: #CF1F4A;
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}}
+.rpc-datetime {{
+    display: inline-block;
+    color: #475569;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    margin-left: 12px;
+    vertical-align: middle;
+}}
+.cal-icon {{
+    display: inline-block;
+    vertical-align: -2px;
+    margin-right: 4px;
+    width: 14px;
+    height: 14px;
+}}
+table.tabla-ranking {{
     border-collapse: collapse;
     margin: 8px auto;
     width: {table_width};
@@ -202,7 +289,7 @@ table {{
     overflow: hidden;
     box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 }}
-th {{
+table.tabla-ranking th {{
     background-color: #CF1F4A;
     color: white;
     padding: {th_pad};
@@ -210,7 +297,7 @@ th {{
     font-weight: 600;
     text-align: center;
 }}
-td {{
+table.tabla-ranking td {{
     vertical-align: middle;
     padding: {td_pad};
     border-bottom: 1px solid #eaeaea;
@@ -288,11 +375,28 @@ tr:nth-child(even) {{ background-color: #fafbfc; }}
 """
 
 
-def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoamérica", globos_dir='/app/globosgenerados', top_n=10):
+def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoamérica", globos_dir='/app/globosgenerados', top_n=10, rpc_name="RPC", datetime_str=""):
     headers = "".join(f'<th class="col-prob">{chr(65 + i)}</th>' for i in range(cantidadProblemas))
     rows_html = ""
     row_count = len(rows)
     balloon_size = 30 if row_count <= 5 else (25 if row_count <= 10 else (20 if row_count <= 15 else 17))
+
+    clean_dt = str(datetime_str or "").replace("📅", "").strip()
+    clean_dt = re.sub(r'(?i)\bhora de bogot[aá]\b', 'Hora de Colombia', clean_dt).strip()
+    if not clean_dt:
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+            bogota_tz = ZoneInfo('America/Bogota')
+        except ImportError:
+            from datetime import timezone, timedelta
+            bogota_tz = timezone(timedelta(hours=-5))
+        clean_dt = datetime.now(bogota_tz).strftime("%d/%m/%Y %H:%M")
+
+    if "colombia" not in clean_dt.lower() and "hora" not in clean_dt.lower():
+        display_datetime = f"{clean_dt} Hora de Colombia"
+    else:
+        display_datetime = clean_dt
 
     for i, r in enumerate(rows):
         if i == 0:
@@ -340,11 +444,23 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
     return f"""<html>
 <head><meta charset="utf-8"><style>{css}</style></head>
 <body>
-<div class="cabecera">
-    <img src="file:///app/logorpc/rpc.png" class="logorpc">
-    <h2>{titulo}</h2>
+<div class="cabecera-wrap">
+    <table class="cabecera-tabla">
+        <tr>
+            <td class="cabecera-td-logo">
+                <img src="file:///app/logorpc/rpc.png" class="logorpc">
+            </td>
+            <td class="cabecera-td-textos">
+                <div class="cabecera-titulo">{titulo}</div>
+                <div class="cabecera-meta">
+                    <span class="rpc-badge">{rpc_name}</span>
+                    <span class="rpc-datetime"><svg class="cal-icon" viewBox="0 0 24 24"><path fill="#64748b" d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>{display_datetime}</span>
+                </div>
+            </td>
+        </tr>
+    </table>
 </div>
-<table>
+<table class="tabla-ranking">
 <tr><th class="col-num">#</th><th class="col-team">Equipo</th>{headers}<th class="col-total">Total</th></tr>
 {rows_html}
 </table>
@@ -384,9 +500,26 @@ def _screenshot_html(html_content, output_path=None):
         return buf.getvalue()
 
 
-def generate_ranking(year, contest, country=None, univ=None, top_n=10):
+def generate_ranking(year, contest, country=None, univ=None, top_n=10, rpc_name=None, datetime_str=None):
     file_key = _file_key(year, contest, country=country, univ=univ, top_n=top_n)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    if not rpc_name:
+        if contest:
+            c_clean = ''.join(c for c in str(contest) if c.isdigit())
+            rpc_name = f"RPC {str(int(c_clean)).zfill(2)}" if c_clean else "RPC"
+        else:
+            rpc_name = "RPC"
+
+    if not datetime_str:
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+            bogota_tz = ZoneInfo('America/Bogota')
+        except ImportError:
+            from datetime import timezone, timedelta
+            bogota_tz = timezone(timedelta(hours=-5))
+        datetime_str = datetime.now(bogota_tz).strftime("%d/%m/%Y %H:%M")
 
     # 1. Fetch ranking con filtros aplicados
     try:
@@ -438,7 +571,7 @@ def generate_ranking(year, contest, country=None, univ=None, top_n=10):
 
     # 5. Generar HTML y renderizar imagen
     globos_dir = _ensure_globos(cantidadProblemas, year=year, contest=contest)
-    html = _ranking_html(rows, cantidadProblemas, problemasTeam, titulo=titulo, globos_dir=globos_dir, top_n=top_n)
+    html = _ranking_html(rows, cantidadProblemas, problemasTeam, titulo=titulo, globos_dir=globos_dir, top_n=top_n, rpc_name=rpc_name, datetime_str=datetime_str)
     
     html_path = os.path.join(OUTPUT_DIR, f"ranking_{file_key}.html")
     jpg_path = os.path.join(OUTPUT_DIR, f"ranking_{file_key}.jpg")
@@ -451,9 +584,9 @@ def generate_ranking(year, contest, country=None, univ=None, top_n=10):
 
 @app.route('/generate', methods=['POST'])
 def generate():
-    year, contest, country, univ, top_n = _contest_params()
+    year, contest, country, univ, top_n, rpc_name, datetime_str = _contest_params()
     try:
-        file_key, jpg_path = generate_ranking(year, contest, country=country, univ=univ, top_n=top_n)
+        file_key, jpg_path = generate_ranking(year, contest, country=country, univ=univ, top_n=top_n, rpc_name=rpc_name, datetime_str=datetime_str)
         return jsonify({
             "status": "success",
             "message": "Tabla generada exitosamente",
@@ -461,6 +594,8 @@ def generate():
             "path": jpg_path,
             "top_n": top_n,
             "country": country,
+            "rpc_name": rpc_name,
+            "datetime_str": datetime_str,
         }), 200
     except Exception as e:
         import traceback
@@ -470,13 +605,13 @@ def generate():
 
 @app.route('/ranking.jpg', methods=['GET'])
 def get_image():
-    year, contest, country, univ, top_n = _contest_params()
+    year, contest, country, univ, top_n, rpc_name, datetime_str = _contest_params()
     file_key = _file_key(year, contest, country=country, univ=univ, top_n=top_n)
     path = os.path.join(OUTPUT_DIR, f"ranking_{file_key}.jpg")
 
     if not os.path.exists(path):
         try:
-            _, path = generate_ranking(year, contest, country=country, univ=univ, top_n=top_n)
+            _, path = generate_ranking(year, contest, country=country, univ=univ, top_n=top_n, rpc_name=rpc_name, datetime_str=datetime_str)
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
 

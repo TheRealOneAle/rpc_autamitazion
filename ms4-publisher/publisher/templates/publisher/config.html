@@ -309,6 +309,193 @@
       accent-color: var(--primary);
       cursor: pointer;
     }
+
+    /* LOG MODAL & TERMINAL CONSOLE */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10, 8, 20, 0.75);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-window {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 980px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 12px 18px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .terminal-dots { display: flex; gap: 6px; align-items: center; }
+    .terminal-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+    .modal-title { font-size: 0.9rem; font-weight: 700; color: #f0f6fc; display: flex; align-items: center; gap: 8px; }
+    .btn-close-modal {
+      background: none; border: none; color: #8b949e; cursor: pointer;
+      font-size: 1.2rem; line-height: 1; padding: 4px 8px; border-radius: 6px;
+    }
+    .btn-close-modal:hover { color: #f0f6fc; background: rgba(255,255,255,0.08); }
+
+    /* MODAL LAST PUB BANNER */
+    .modal-banner {
+      background: linear-gradient(90deg, rgba(35, 134, 54, 0.15), rgba(56, 189, 248, 0.08));
+      border-bottom: 1px solid rgba(46, 160, 67, 0.3);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .banner-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .banner-badge {
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .banner-badge.top { background: #238636; color: #fff; }
+    .banner-badge.fs  { background: #e11d48; color: #fff; }
+    .banner-title { font-weight: 600; font-size: 0.88rem; color: #e6edf3; }
+    .banner-time { font-size: 0.75rem; color: #8b949e; }
+
+    /* MODAL CONTROLS */
+    .modal-toolbar {
+      padding: 10px 18px;
+      background: #11161d;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .modal-toolbar select {
+      background: #0d1117;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+    .modal-toolbar select:focus { outline: none; border-color: #58a6ff; }
+    .modal-toolbar button {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s;
+    }
+    .modal-toolbar button:hover { background: #30363d; color: #f0f6fc; }
+
+    /* TERMINAL LOG CONTAINER */
+    .terminal-container {
+      flex: 1;
+      padding: 14px 18px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.65;
+      background: #090d13;
+      max-height: 55vh;
+      min-height: 280px;
+    }
+    .log-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      margin-bottom: 3px;
+      transition: background .15s;
+    }
+    .log-row:hover { background: rgba(255,255,255,0.03); }
+    .log-time { color: #6e7681; font-size: 0.76rem; flex-shrink: 0; min-width: 65px; }
+    .log-tag-rpc {
+      color: #79c0ff;
+      background: rgba(56, 139, 253, 0.15);
+      border: 1px solid rgba(56, 139, 253, 0.3);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .log-tag-level {
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+    .log-tag-level.success {
+      background: #238636;
+      color: #ffffff;
+      box-shadow: 0 0 8px rgba(35, 134, 54, 0.5);
+    }
+    .log-tag-level.error {
+      background: #da3633;
+      color: #ffffff;
+      box-shadow: 0 0 8px rgba(218, 54, 51, 0.5);
+    }
+    .log-tag-level.warning {
+      background: #9e6a03;
+      color: #ffffff;
+    }
+    .log-tag-level.info {
+      background: #1f6feb;
+      color: #ffffff;
+    }
+    .log-msg { flex: 1; word-break: break-word; }
+    
+    .log-row.is-publication {
+      background: rgba(35, 134, 54, 0.12);
+      border-left: 3px solid #3fb950;
+      box-shadow: inset 0 0 12px rgba(63, 185, 80, 0.08);
+    }
+    .log-row.is-publication .log-msg {
+      color: #3fb950;
+      font-weight: 600;
+      text-shadow: 0 0 1px rgba(63, 185, 80, 0.3);
+    }
+    .log-row.is-error {
+      background: rgba(218, 54, 51, 0.1);
+      border-left: 3px solid #f85149;
+    }
+    .log-row.is-error .log-msg { color: #f85149; }
+    .log-row.is-warning .log-msg { color: #d29922; }
+    .log-row.is-info .log-msg { color: #c9d1d9; }
   </style>
 </head>
 <body>
@@ -319,6 +506,13 @@
       <p>Personaliza publicaciones, rankings por país y sensor reactivo</p>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="go-btn" id="btn-open-logs" onclick="openLogModal()" style="background:var(--card-bg);border:1px solid var(--border);color:var(--text);cursor:pointer;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 4 5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        Ver Logs
+      </button>
       <button class="go-btn" id="btn-go" data-disabled onclick="goToPanel()">
         Ir al publicador
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -407,7 +601,7 @@
 
     <!-- TAMAÑO TOP N Y RANKINGS POR PAÍS -->
     <div class="card">
-      <h2>Parametrización de Scoreboard</h2>
+      <h2>Configuración del Scoreboard</h2>
       <div class="field">
         <label>Tamaño del Top (Filas mostradas en imagen)</label>
         <div class="pills-grid">
@@ -434,7 +628,7 @@
         </div>
       </div>
 
-      <button class="save-btn" id="btn-rankings-cfg">Guardar configuración de rankings</button>
+      <button class="save-btn" id="btn-rankings-cfg" disabled style="opacity:0.6;cursor:not-allowed;">⏳ Cargando países participantes...</button>
       <p class="msg" id="msg-rankings"></p>
     </div>
 
@@ -466,6 +660,78 @@
       <p class="msg" id="msg-activated"></p>
     </div>
 
+  </div>
+
+  <!-- MODAL DE CONSOLA DE LOGS (Requisitos 3, 4, 5, 6) -->
+  <div id="log-modal" class="modal-backdrop" onclick="onBackdropClick(event)">
+    <div class="modal-window">
+      <!-- HEADER -->
+      <div class="modal-header">
+        <div class="terminal-dots">
+          <span class="terminal-dot dot-red" onclick="closeLogModal()" style="cursor:pointer;" title="Cerrar"></span>
+          <span class="terminal-dot dot-yellow"></span>
+          <span class="terminal-dot dot-green"></span>
+        </div>
+        <div class="modal-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2">
+            <polyline points="4 17 10 11 4 5"/>
+            <line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+          Consola del Sistema & Historial de Publicaciones
+        </div>
+        <button type="button" class="btn-close-modal" onclick="closeLogModal()" title="Cerrar">✕</button>
+      </div>
+
+      <!-- BANNER DE ÚLTIMA PUBLICACIÓN (Requisito 6) -->
+      <div class="modal-banner" id="modal-last-pub-banner">
+        <div class="banner-left">
+          <span class="banner-badge top" id="modal-last-pub-badge">ÚLTIMA PUBLICACIÓN</span>
+          <span class="banner-title" id="modal-last-pub-title">Consultando registros...</span>
+        </div>
+        <div class="banner-time" id="modal-last-pub-time">—</div>
+      </div>
+
+      <!-- BARRA DE HERRAMIENTAS (Requisito 4: Separar por cada contest) -->
+      <div class="modal-toolbar">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label for="log-contest-select" style="font-size:0.75rem;font-weight:600;color:#8b949e;">Contest:</label>
+          <select id="log-contest-select" onchange="fetchLogs()">
+            <option value="ALL">🌐 Todos los contests</option>
+          </select>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label for="log-level-select" style="font-size:0.75rem;font-weight:600;color:#8b949e;">Filtrar:</label>
+          <select id="log-level-select" onchange="fetchLogs()">
+            <option value="ALL">Todos los eventos</option>
+            <option value="PUBLICATIONS">✅ Solo Publicaciones (Verde)</option>
+            <option value="ERROR">❌ Solo Errores</option>
+            <option value="WARNING">⚠️ Solo Avisos</option>
+            <option value="INFO">ℹ️ Solo Información</option>
+          </select>
+        </div>
+
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+          <label style="font-size:0.75rem;color:#8b949e;display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" id="chk-auto-scroll" checked style="accent-color:#238636;"> Auto-scroll
+          </label>
+          <label style="font-size:0.75rem;color:#8b949e;display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" id="chk-log-refresh" checked style="accent-color:#238636;" onchange="toggleLogRefresh()"> Auto-refresco
+          </label>
+          <button type="button" onclick="fetchLogs()">
+            🔄 Actualizar
+          </button>
+          <button type="button" onclick="clearLogScreen()">
+            🗑️ Limpiar
+          </button>
+        </div>
+      </div>
+
+      <!-- PANTALLA TERMINAL -->
+      <div class="terminal-container" id="terminal-container">
+        <div style="color:#8b949e;text-align:center;padding:20px;">Cargando registros del sistema...</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -557,6 +823,13 @@
 
     async function loadCountriesCheckboxes(selectedList) {
       const container = document.getElementById('countries-checkbox-list');
+      const saveBtn   = document.getElementById('btn-rankings-cfg');
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.6';
+        saveBtn.style.cursor = 'not-allowed';
+        saveBtn.textContent = '⏳ Cargando países participantes...';
+      }
       try {
         if (!container.querySelector('.rank-checkbox[value]:not([value="LATAM"])')) {
           container.innerHTML = `
@@ -591,6 +864,13 @@
               </label>
             `;
           });
+          container.innerHTML = html;
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.style.opacity = '1';
+            saveBtn.style.cursor = 'pointer';
+            saveBtn.textContent = 'Guardar configuración del scoreboard';
+          }
         } else if (!data.success) {
           html += `
             <div style="font-size:0.8rem;color:var(--red);padding:6px;grid-column:1/-1;">
@@ -598,8 +878,14 @@
               <button type="button" onclick="loadCountriesCheckboxes(state.activeRankings)" style="margin-left:8px;padding:3px 8px;font-size:0.75rem;cursor:pointer;border-radius:4px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);">Reintentar</button>
             </div>
           `;
+          container.innerHTML = html;
+          if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.style.opacity = '0.6';
+            saveBtn.style.cursor = 'not-allowed';
+            saveBtn.textContent = '⚠️ Esperando carga de países para guardar';
+          }
         }
-        container.innerHTML = html;
       } catch(e) {
         console.warn('Error loading countries:', e);
         container.innerHTML = `
@@ -612,6 +898,12 @@
             <button type="button" onclick="loadCountriesCheckboxes(state.activeRankings)" style="margin-left:8px;padding:3px 8px;font-size:0.75rem;cursor:pointer;border-radius:4px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);">Reintentar</button>
           </div>
         `;
+        if (saveBtn) {
+          saveBtn.disabled = true;
+          saveBtn.style.opacity = '0.6';
+          saveBtn.style.cursor = 'not-allowed';
+          saveBtn.textContent = '⚠️ Error al cargar países';
+        }
       }
     }
 
@@ -743,6 +1035,8 @@
     });
 
     document.getElementById('btn-rankings-cfg').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-rankings-cfg');
+      if (btn.disabled) return;
       const msg = document.getElementById('msg-rankings');
       const selected = Array.from(document.querySelectorAll('.rank-checkbox:checked')).map(cb => cb.value);
       if (selected.length === 0) selected.push('LATAM');
@@ -826,6 +1120,152 @@
         msg.className = 'msg err';
       }
     });
+
+    let logInterval = null;
+    let isLogModalOpen = false;
+
+    function openLogModal() {
+      const modal = document.getElementById('log-modal');
+      modal.classList.add('open');
+      isLogModalOpen = true;
+      fetchLogs();
+      if (!logInterval && document.getElementById('chk-log-refresh').checked) {
+        logInterval = setInterval(fetchLogs, 4000);
+      }
+    }
+
+    function closeLogModal() {
+      const modal = document.getElementById('log-modal');
+      modal.classList.remove('open');
+      isLogModalOpen = false;
+      if (logInterval) {
+        clearInterval(logInterval);
+        logInterval = null;
+      }
+    }
+
+    function onBackdropClick(e) {
+      if (e.target.id === 'log-modal') {
+        closeLogModal();
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isLogModalOpen) {
+        closeLogModal();
+      }
+    });
+
+    function toggleLogRefresh() {
+      const enabled = document.getElementById('chk-log-refresh').checked;
+      if (enabled && isLogModalOpen) {
+        if (!logInterval) logInterval = setInterval(fetchLogs, 4000);
+      } else {
+        if (logInterval) { clearInterval(logInterval); logInterval = null; }
+      }
+    }
+
+    function clearLogScreen() {
+      document.getElementById('terminal-container').innerHTML =
+        '<div style="color:#8b949e;text-align:center;padding:20px;">Consola limpiada. Esperando nuevos registros...</div>';
+    }
+
+    async function fetchLogs() {
+      const contest = document.getElementById('log-contest-select').value;
+      const level = document.getElementById('log-level-select').value;
+      const container = document.getElementById('terminal-container');
+
+      try {
+        const params = new URLSearchParams();
+        if (contest && contest !== 'ALL') params.set('contest', contest);
+        if (level && level !== 'ALL') params.set('level', level);
+        params.set('limit', '120');
+
+        const r = await fetch(`${API}/api/logs/?${params.toString()}`);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+
+        // 1. Actualizar última publicación en el banner del modal
+        if (data.last_publication && data.last_publication.has_publication) {
+          const lp = data.last_publication;
+          const isFs = (lp.type === 'FIRST_SOLUTION');
+          const badge = document.getElementById('modal-last-pub-badge');
+          if (badge) {
+            badge.className = isFs ? 'banner-badge fs' : 'banner-badge top';
+            badge.textContent = `${isFs ? '🎈' : '🏆'} ${lp.type_label} • ${lp.rpc_name}`;
+          }
+          const modalTitle = document.getElementById('modal-last-pub-title');
+          if (modalTitle) modalTitle.textContent = lp.title;
+          const modalTime = document.getElementById('modal-last-pub-time');
+          if (modalTime) modalTime.textContent = `${lp.formatted_date} (${lp.time_ago})`;
+        } else {
+          const modalTitle = document.getElementById('modal-last-pub-title');
+          if (modalTitle) modalTitle.textContent = 'Sin publicaciones registradas todavía';
+          const modalTime = document.getElementById('modal-last-pub-time');
+          if (modalTime) modalTime.textContent = '—';
+        }
+
+        // 2. Actualizar lista de concursos en el selector si cambió o se carga por primera vez
+        const selContest = document.getElementById('log-contest-select');
+        if (data.contests && data.contests.length > 0) {
+          const currentVal = selContest.value;
+          let opts = '<option value="ALL">🌐 Todos los contests</option>';
+          data.contests.forEach(c => {
+            const isSelected = (currentVal === c.key) ? 'selected' : '';
+            opts += `<option value="${c.key}" ${isSelected}>${c.label}</option>`;
+          });
+          if (selContest.innerHTML !== opts) {
+            selContest.innerHTML = opts;
+          }
+        }
+
+        // 3. Renderizar logs
+        if (!data.logs || data.logs.length === 0) {
+          container.innerHTML = '<div style="color:#8b949e;text-align:center;padding:20px;">Sin registros para los filtros seleccionados.</div>';
+          return;
+        }
+
+        let html = '';
+        data.logs.forEach(item => {
+          const isPub = (item.level === 'SUCCESS' && (item.category === 'PUBLICATION' || item.category === 'FIRST_SOLUTION' || item.pub_type));
+          const isErr = (item.level === 'ERROR');
+          const isWarn = (item.level === 'WARNING');
+
+          let rowClass = 'log-row';
+          if (isPub) rowClass += ' is-publication';
+          else if (isErr) rowClass += ' is-error';
+          else if (isWarn) rowClass += ' is-warning';
+          else rowClass += ' is-info';
+
+          const timeStr = item.created_at ? new Date(item.created_at).toLocaleTimeString('es-CO', { hour12: false }) : '--:--:--';
+          const rpcBadge = item.rpc_name ? `<span class="log-tag-rpc">${item.rpc_name}</span>` : '';
+          
+          let levelBadgeClass = 'log-tag-level ' + (item.level ? item.level.toLowerCase() : 'info');
+          let levelLabel = item.level;
+          if (isPub) {
+            levelBadgeClass = 'log-tag-level success';
+            levelLabel = (item.pub_type === 'FIRST_SOLUTION' || item.category === 'FIRST_SOLUTION') ? '🎈 FIRST SOL' : '🏆 PUBLICADO';
+          }
+
+          html += `
+            <div class="${rowClass}">
+              <span class="log-time">[${timeStr}]</span>
+              ${rpcBadge}
+              <span class="${levelBadgeClass}">${levelLabel}</span>
+              <span class="log-msg">${item.message}</span>
+            </div>
+          `;
+        });
+
+        container.innerHTML = html;
+
+        if (document.getElementById('chk-auto-scroll').checked) {
+          container.scrollTop = container.scrollHeight;
+        }
+      } catch(e) {
+        console.warn('Error fetching logs:', e);
+      }
+    }
 
     loadAll();
   </script>

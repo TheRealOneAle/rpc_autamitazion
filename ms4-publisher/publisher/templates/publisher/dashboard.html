@@ -151,6 +151,104 @@
     .save-indicator.ok { color: var(--green); }
     .save-indicator.err { color: var(--red); }
 
+    /* STAT CHIPS BELOW TEXTAREA */
+    .stat-chips-wrap {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: rgba(207, 31, 74, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .stat-chips-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .stat-chips-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .stat-chips-sync-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+    .stat-chips-sync-btn:hover {
+      background: rgba(207, 31, 74, 0.1);
+      border-color: rgba(207, 31, 74, 0.3);
+    }
+    .stat-chips-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    @media (max-width: 900px) {
+      .stat-chips-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    .stat-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      min-width: 0;
+    }
+    .stat-chip:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .stat-chip-icon {
+      font-size: 1.1rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .stat-chip-body {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .stat-chip-val {
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.1;
+    }
+    .stat-chip-lbl {
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: var(--text-sub);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* PREVIEW CONTROLS */
     .preview-controls {
       display: grid;
@@ -240,6 +338,194 @@
     }
     .fs-badge.published { background: var(--green-light); color: var(--green-text); }
     .fs-badge.pending { background: var(--border); color: var(--text-sub); }
+
+    /* LOG MODAL & TERMINAL CONSOLE */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10, 8, 20, 0.75);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 16px;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-window {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 980px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 12px 18px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .terminal-dots { display: flex; gap: 6px; align-items: center; }
+    .terminal-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+    .modal-title { font-size: 0.9rem; font-weight: 700; color: #f0f6fc; display: flex; align-items: center; gap: 8px; }
+    .btn-close-modal {
+      background: none; border: none; color: #8b949e; cursor: pointer;
+      font-size: 1.2rem; line-height: 1; padding: 4px 8px; border-radius: 6px;
+    }
+    .btn-close-modal:hover { color: #f0f6fc; background: rgba(255,255,255,0.08); }
+
+    /* MODAL LAST PUB BANNER */
+    .modal-banner {
+      background: linear-gradient(90deg, rgba(35, 134, 54, 0.15), rgba(56, 189, 248, 0.08));
+      border-bottom: 1px solid rgba(46, 160, 67, 0.3);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .banner-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .banner-badge {
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .banner-badge.top { background: #238636; color: #fff; }
+    .banner-badge.fs  { background: #e11d48; color: #fff; }
+    .banner-title { font-weight: 600; font-size: 0.88rem; color: #e6edf3; }
+    .banner-time { font-size: 0.75rem; color: #8b949e; }
+
+    /* MODAL CONTROLS */
+    .modal-toolbar {
+      padding: 10px 18px;
+      background: #11161d;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .modal-toolbar select {
+      background: #0d1117;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+    .modal-toolbar select:focus { outline: none; border-color: #58a6ff; }
+    .modal-toolbar button {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s;
+    }
+    .modal-toolbar button:hover { background: #30363d; color: #f0f6fc; }
+
+    /* TERMINAL LOG CONTAINER */
+    .terminal-container {
+      flex: 1;
+      padding: 14px 18px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.65;
+      background: #090d13;
+      max-height: 55vh;
+      min-height: 280px;
+    }
+    .log-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      margin-bottom: 3px;
+      transition: background .15s;
+    }
+    .log-row:hover { background: rgba(255,255,255,0.03); }
+    .log-time { color: #6e7681; font-size: 0.76rem; flex-shrink: 0; min-width: 65px; }
+    .log-tag-rpc {
+      color: #79c0ff;
+      background: rgba(56, 139, 253, 0.15);
+      border: 1px solid rgba(56, 139, 253, 0.3);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .log-tag-level {
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+    .log-tag-level.success {
+      background: #238636;
+      color: #ffffff;
+      box-shadow: 0 0 8px rgba(35, 134, 54, 0.5);
+    }
+    .log-tag-level.error {
+      background: #da3633;
+      color: #ffffff;
+      box-shadow: 0 0 8px rgba(218, 54, 51, 0.5);
+    }
+    .log-tag-level.warning {
+      background: #9e6a03;
+      color: #ffffff;
+    }
+    .log-tag-level.info {
+      background: #1f6feb;
+      color: #ffffff;
+    }
+    .log-msg { flex: 1; word-break: break-word; }
+    
+    /* REQUISITO 5: Publicaciones destacadas en verde brillante */
+    .log-row.is-publication {
+      background: rgba(35, 134, 54, 0.12);
+      border-left: 3px solid #3fb950;
+      box-shadow: inset 0 0 12px rgba(63, 185, 80, 0.08);
+    }
+    .log-row.is-publication .log-msg {
+      color: #3fb950;
+      font-weight: 600;
+      text-shadow: 0 0 1px rgba(63, 185, 80, 0.3);
+    }
+    .log-row.is-error {
+      background: rgba(218, 54, 51, 0.1);
+      border-left: 3px solid #f85149;
+    }
+    .log-row.is-error .log-msg { color: #f85149; }
+    .log-row.is-warning .log-msg { color: #d29922; }
+    .log-row.is-info .log-msg { color: #c9d1d9; }
   </style>
 </head>
 <body>
@@ -250,6 +536,13 @@
       <p class="subtitle">Panel de publicaciones y monitor reactivo First Solution</p>
     </div>
     <div class="topbar-actions">
+      <button type="button" class="config-btn" id="btn-open-logs" onclick="openLogModal()" style="cursor:pointer;background:var(--card-bg);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 17 10 11 4 5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        Ver Logs
+      </button>
       <a href="{{ CONTEXT_PATH }}/configuracion/" class="config-btn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
@@ -279,6 +572,19 @@
           <span class="status-label" id="label-proceso">Cargando...</span>
         </div>
         <p class="next-run" id="next-run"></p>
+
+        <!-- ÚLTIMA PUBLICACIÓN (Requisito 6) -->
+        <div id="last-pub-dashboard-card" style="margin-top:12px;padding:11px 13px;border-radius:9px;background:var(--input-bg);border:1px solid var(--border);display:flex;flex-direction:column;gap:5px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:0.75rem;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.04em;">Última publicación</span>
+            <span id="last-pub-tag" style="font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:12px;background:var(--primary-light);color:var(--primary);">Consultando...</span>
+          </div>
+          <div id="last-pub-content" style="font-size:0.86rem;font-weight:600;color:var(--text);margin-top:1px;">
+            Consultando registros...
+          </div>
+          <div id="last-pub-time" style="font-size:0.76rem;color:var(--text-hint);"></div>
+        </div>
+
         <button class="action" id="btn-publish" disabled>Publicar rankings activos ahora</button>
         <button class="action" id="btn-stop">Detener publicaciones</button>
         <p id="publish-msg"></p>
@@ -328,6 +634,48 @@
           <label for="inp-text">Mensaje personalizado</label>
           <textarea id="inp-text" rows="8" placeholder="Escribe aquí el texto de la publicación..."></textarea>
           <span class="save-indicator" id="save-indicator"></span>
+        </div>
+
+        <!-- TARJETICAS DE DATOS EN VIVO (BOCA) -->
+        <div class="stat-chips-wrap">
+          <div class="stat-chips-header">
+            <span class="stat-chips-title">
+              <span>📊</span> Datos en vivo de competencia (BOCA)
+            </span>
+            <button type="button" class="stat-chips-sync-btn" onclick="syncStatsNow()" title="Actualizar los números de envíos y equipos dentro del texto">
+              🔄 Sincronizar en texto
+            </button>
+          </div>
+          <div class="stat-chips-grid">
+            <div class="stat-chip" onclick="syncStatsNow()" title="Clic para sincronizar envíos totales en el texto">
+              <span class="stat-chip-icon">📈</span>
+              <div class="stat-chip-body">
+                <span class="stat-chip-val" id="chip-submissions">—</span>
+                <span class="stat-chip-lbl">Envíos totales</span>
+              </div>
+            </div>
+            <div class="stat-chip" onclick="syncStatsNow()" title="Clic para sincronizar envíos con Accepted en el texto">
+              <span class="stat-chip-icon">✅</span>
+              <div class="stat-chip-body">
+                <span class="stat-chip-val" id="chip-accepted">—</span>
+                <span class="stat-chip-lbl">Envíos AC</span>
+              </div>
+            </div>
+            <div class="stat-chip" onclick="syncStatsNow()" title="Clic para sincronizar equipos con AC en el texto">
+              <span class="stat-chip-icon">💡</span>
+              <div class="stat-chip-body">
+                <span class="stat-chip-val" id="chip-teams-solved">—</span>
+                <span class="stat-chip-lbl">Equipos con AC</span>
+              </div>
+            </div>
+            <div class="stat-chip" onclick="syncStatsNow()" title="Clic para sincronizar total de equipos en el texto">
+              <span class="stat-chip-icon">👥</span>
+              <div class="stat-chip-body">
+                <span class="stat-chip-val" id="chip-total-teams">—</span>
+                <span class="stat-chip-lbl">Total equipos</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -387,9 +735,80 @@
           <span>Compartir</span>
         </div>
       </div>
-      <p class="next-run" style="text-align:center;margin-top:12px;" id="preview-note"></p>
     </div>
 
+  </div>
+
+  <!-- MODAL DE CONSOLA DE LOGS (Requisitos 3, 4, 5, 6) -->
+  <div id="log-modal" class="modal-backdrop" onclick="onBackdropClick(event)">
+    <div class="modal-window">
+      <!-- HEADER -->
+      <div class="modal-header">
+        <div class="terminal-dots">
+          <span class="terminal-dot dot-red" onclick="closeLogModal()" style="cursor:pointer;" title="Cerrar"></span>
+          <span class="terminal-dot dot-yellow"></span>
+          <span class="terminal-dot dot-green"></span>
+        </div>
+        <div class="modal-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2">
+            <polyline points="4 17 10 11 4 5"/>
+            <line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+          Consola del Sistema & Historial de Publicaciones
+        </div>
+        <button type="button" class="btn-close-modal" onclick="closeLogModal()" title="Cerrar">✕</button>
+      </div>
+
+      <!-- BANNER DE ÚLTIMA PUBLICACIÓN (Requisito 6) -->
+      <div class="modal-banner" id="modal-last-pub-banner">
+        <div class="banner-left">
+          <span class="banner-badge top" id="modal-last-pub-badge">ÚLTIMA PUBLICACIÓN</span>
+          <span class="banner-title" id="modal-last-pub-title">Consultando registros...</span>
+        </div>
+        <div class="banner-time" id="modal-last-pub-time">—</div>
+      </div>
+
+      <!-- BARRA DE HERRAMIENTAS (Requisito 4: Separar por cada contest) -->
+      <div class="modal-toolbar">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label for="log-contest-select" style="font-size:0.75rem;font-weight:600;color:#8b949e;">Contest:</label>
+          <select id="log-contest-select" onchange="fetchLogs()">
+            <option value="ALL">🌐 Todos los contests</option>
+          </select>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label for="log-level-select" style="font-size:0.75rem;font-weight:600;color:#8b949e;">Filtrar:</label>
+          <select id="log-level-select" onchange="fetchLogs()">
+            <option value="ALL">Todos los eventos</option>
+            <option value="PUBLICATIONS">✅ Solo Publicaciones (Verde)</option>
+            <option value="ERROR">❌ Solo Errores</option>
+            <option value="WARNING">⚠️ Solo Avisos</option>
+            <option value="INFO">ℹ️ Solo Información</option>
+          </select>
+        </div>
+
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+          <label style="font-size:0.75rem;color:#8b949e;display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" id="chk-auto-scroll" checked style="accent-color:#238636;"> Auto-scroll
+          </label>
+          <label style="font-size:0.75rem;color:#8b949e;display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" id="chk-log-refresh" checked style="accent-color:#238636;" onchange="toggleLogRefresh()"> Auto-refresco
+          </label>
+          <button type="button" onclick="fetchLogs()">
+            🔄 Actualizar
+          </button>
+          <button type="button" onclick="clearLogScreen()">
+            🗑️ Limpiar
+          </button>
+        </div>
+      </div>
+
+      <!-- PANTALLA TERMINAL -->
+      <div class="terminal-container" id="terminal-container">
+        <div style="color:#8b949e;text-align:center;padding:20px;">Cargando registros del sistema...</div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -455,6 +874,47 @@
       saveText();
     }
 
+    function syncStatsIntoText(text, stats) {
+      if (!text || !stats || typeof stats.total_submissions === 'undefined') return text;
+      const sub = stats.total_submissions;
+      const solved = stats.teams_with_solved ?? 0;
+      const total = stats.total_teams ?? 0;
+      const regex = /(📈?\s*En la maratón se han registrado\s+)(?:\d+|\?)(.*?\bcon\s+)(?:\d+|\?)(.*?\bde\s+)(?:\d+|\?)(.*?\bequipos sumando problemas resueltos\.?)/i;
+      if (regex.test(text)) {
+        return text.replace(regex, `$1${sub}$2${solved}$3${total}$4`);
+      }
+      return text;
+    }
+
+    function syncStatsNow() {
+      const el = document.getElementById('inp-text');
+      if (!state.stats) {
+        loadPreviewStats().then(() => {
+          if (state.stats) syncStatsNow();
+        });
+        return;
+      }
+      if (!el.value.trim() || !state.isCustom) {
+        el.value = autoDescription();
+      } else {
+        const regex = /(📈?\s*En la maratón se han registrado\s+)(?:\d+|\?)(.*?\bcon\s+)(?:\d+|\?)(.*?\bde\s+)(?:\d+|\?)(.*?\bequipos sumando problemas resueltos\.?)/i;
+        if (regex.test(el.value)) {
+          el.value = syncStatsIntoText(el.value, state.stats);
+        } else {
+          const statsLine = `\n\n📈 En la maratón se han registrado ${state.stats.total_submissions} envíos totales, con ${state.stats.teams_with_solved} de ${state.stats.total_teams} equipos sumando problemas resueltos.`;
+          el.value = el.value.trim() + statsLine;
+        }
+      }
+      state.savedText = el.value;
+      refreshPreviewText();
+      saveText();
+      const ind = document.getElementById('save-indicator');
+      if (ind) {
+        ind.className = 'save-indicator ok';
+        ind.textContent = '✓ Datos de BOCA sincronizados en el texto';
+      }
+    }
+
     function currentText() {
       const el = document.getElementById('inp-text');
       return (el && el.value.trim()) ? el.value : '';
@@ -462,7 +922,11 @@
 
     function refreshPreviewText() {
       const text = currentText();
-      document.getElementById('fb-body').textContent = text ? text : autoDescription();
+      let baseText = text ? text : autoDescription();
+      if (state.stats) {
+        baseText = syncStatsIntoText(baseText, state.stats);
+      }
+      document.getElementById('fb-body').textContent = baseText;
     }
 
     function onPreviewParamsChange() {
@@ -530,8 +994,27 @@
       }
     }
 
+    async function saveTextSilently() {
+      const el = document.getElementById('inp-text');
+      if (!el) return;
+      try {
+        await fetch(`${API}/api/config/`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+          body: JSON.stringify({ publication_text: el.value }),
+        });
+      } catch(_) {}
+    }
+
+    let typingTimer = null;
     function onTextInput() {
       state.isCustom = true;
+      state.isUserTyping = true;
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => {
+        state.isUserTyping = false;
+      }, 2000);
+
       refreshPreviewText();
       clearTimeout(saveTimer);
       saveTimer = setTimeout(saveText, 800);
@@ -603,6 +1086,29 @@
         document.getElementById('label-proceso').textContent = d.proceso_activo
           ? 'Publicaciones automáticas activas'
           : 'Publicaciones detenidas';
+
+        // Actualizar tarjeta de Última Publicación en Dashboard
+        if (d.last_publication && d.last_publication.has_publication) {
+          const lp = d.last_publication;
+          const isFs = (lp.type === 'FIRST_SOLUTION');
+          const dashTag = document.getElementById('last-pub-tag');
+          if (dashTag) {
+            dashTag.style.background = isFs ? '#e11d48' : 'var(--primary)';
+            dashTag.style.color = '#fff';
+            dashTag.textContent = `${isFs ? '🎈' : '🏆'} ${lp.type_label} • ${lp.rpc_name}`;
+            document.getElementById('last-pub-content').textContent = lp.title;
+            document.getElementById('last-pub-time').textContent = `Publicado: ${lp.formatted_date} (${lp.time_ago})`;
+          }
+        } else {
+          const dashTag = document.getElementById('last-pub-tag');
+          if (dashTag) {
+            dashTag.style.background = 'var(--border)';
+            dashTag.style.color = 'var(--text-sub)';
+            dashTag.textContent = 'Sin registro';
+            document.getElementById('last-pub-content').textContent = 'Sin publicaciones realizadas aún';
+            document.getElementById('last-pub-time').textContent = '';
+          }
+        }
 
         const btnStop = document.getElementById('btn-stop');
         btnStop.classList.toggle('resume', !d.proceso_activo);
@@ -734,11 +1240,32 @@
         const stats = await r.json();
         if (!stats.error) {
           state.stats = stats;
-          document.getElementById('preview-note').textContent = `Estadísticas: ${stats.total_submissions || 0} envíos, ${stats.accepted_submissions || 0} AC.`;
+
+          // Actualizar tarjeticas de estadísticas en vivo
+          const chipSub = document.getElementById('chip-submissions');
+          const chipAccepted = document.getElementById('chip-accepted');
+          const chipSolved = document.getElementById('chip-teams-solved');
+          const chipTotal = document.getElementById('chip-total-teams');
+          if (chipSub) chipSub.textContent = stats.total_submissions ?? '0';
+          if (chipAccepted) chipAccepted.textContent = stats.accepted_submissions ?? '0';
+          if (chipSolved) chipSolved.textContent = stats.teams_with_solved ?? '0';
+          if (chipTotal) chipTotal.textContent = stats.total_teams ?? '0';
+
           const el = document.getElementById('inp-text');
-          if (!state.isCustom && document.activeElement !== el) {
-            el.value = autoDescription();
-            state.savedText = el.value;
+          const isUserEditing = (document.activeElement === el || state.isUserTyping);
+
+          if (!isUserEditing && el) {
+            if (!state.isCustom) {
+              el.value = autoDescription();
+              state.savedText = el.value;
+            } else if (el.value.trim()) {
+              const updatedText = syncStatsIntoText(el.value, stats);
+              if (updatedText !== el.value) {
+                el.value = updatedText;
+                state.savedText = updatedText;
+                saveTextSilently();
+              }
+            }
           }
         }
       } catch(e) {
@@ -804,14 +1331,189 @@
       }
     });
 
+    let logInterval = null;
+    let isLogModalOpen = false;
+
+    function openLogModal() {
+      const modal = document.getElementById('log-modal');
+      modal.classList.add('open');
+      isLogModalOpen = true;
+      fetchLogs();
+      if (!logInterval && document.getElementById('chk-log-refresh').checked) {
+        logInterval = setInterval(fetchLogs, 4000);
+      }
+    }
+
+    function closeLogModal() {
+      const modal = document.getElementById('log-modal');
+      modal.classList.remove('open');
+      isLogModalOpen = false;
+      if (logInterval) {
+        clearInterval(logInterval);
+        logInterval = null;
+      }
+    }
+
+    function onBackdropClick(e) {
+      if (e.target.id === 'log-modal') {
+        closeLogModal();
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isLogModalOpen) {
+        closeLogModal();
+      }
+    });
+
+    function toggleLogRefresh() {
+      const enabled = document.getElementById('chk-log-refresh').checked;
+      if (enabled && isLogModalOpen) {
+        if (!logInterval) logInterval = setInterval(fetchLogs, 4000);
+      } else {
+        if (logInterval) { clearInterval(logInterval); logInterval = null; }
+      }
+    }
+
+    function clearLogScreen() {
+      document.getElementById('terminal-container').innerHTML =
+        '<div style="color:#8b949e;text-align:center;padding:20px;">Consola limpiada. Esperando nuevos registros...</div>';
+    }
+
+    async function fetchLogs() {
+      const contest = document.getElementById('log-contest-select').value;
+      const level = document.getElementById('log-level-select').value;
+      const container = document.getElementById('terminal-container');
+
+      try {
+        const params = new URLSearchParams();
+        if (contest && contest !== 'ALL') params.set('contest', contest);
+        if (level && level !== 'ALL') params.set('level', level);
+        params.set('limit', '120');
+
+        const r = await fetch(`${API}/api/logs/?${params.toString()}`);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+
+        // 1. Actualizar última publicación en el banner del modal y en el dashboard
+        if (data.last_publication && data.last_publication.has_publication) {
+          const lp = data.last_publication;
+          const isFs = (lp.type === 'FIRST_SOLUTION');
+          const badge = document.getElementById('modal-last-pub-badge');
+          if (badge) {
+            badge.className = isFs ? 'banner-badge fs' : 'banner-badge top';
+            badge.textContent = `${isFs ? '🎈' : '🏆'} ${lp.type_label} • ${lp.rpc_name}`;
+          }
+          const modalTitle = document.getElementById('modal-last-pub-title');
+          if (modalTitle) modalTitle.textContent = lp.title;
+          const modalTime = document.getElementById('modal-last-pub-time');
+          if (modalTime) modalTime.textContent = `${lp.formatted_date} (${lp.time_ago})`;
+
+          // En dashboard principal
+          const dashTag = document.getElementById('last-pub-tag');
+          if (dashTag) {
+            dashTag.style.background = isFs ? '#e11d48' : 'var(--primary)';
+            dashTag.style.color = '#fff';
+            dashTag.textContent = `${isFs ? '🎈' : '🏆'} ${lp.type_label} • ${lp.rpc_name}`;
+            document.getElementById('last-pub-content').textContent = lp.title;
+            document.getElementById('last-pub-time').textContent = `Publicado: ${lp.formatted_date} (${lp.time_ago})`;
+          }
+        } else {
+          const modalTitle = document.getElementById('modal-last-pub-title');
+          if (modalTitle) modalTitle.textContent = 'Sin publicaciones registradas todavía';
+          const modalTime = document.getElementById('modal-last-pub-time');
+          if (modalTime) modalTime.textContent = '—';
+        }
+
+        // 2. Actualizar lista de concursos en el selector si cambió o se carga por primera vez
+        const selContest = document.getElementById('log-contest-select');
+        if (data.contests && data.contests.length > 0) {
+          const currentVal = selContest.value;
+          let opts = '<option value="ALL">🌐 Todos los contests</option>';
+          data.contests.forEach(c => {
+            const isSelected = (currentVal === c.key) ? 'selected' : '';
+            opts += `<option value="${c.key}" ${isSelected}>${c.label}</option>`;
+          });
+          if (selContest.innerHTML !== opts) {
+            selContest.innerHTML = opts;
+          }
+        }
+
+        // 3. Renderizar logs
+        if (!data.logs || data.logs.length === 0) {
+          container.innerHTML = '<div style="color:#8b949e;text-align:center;padding:20px;">Sin registros para los filtros seleccionados.</div>';
+          return;
+        }
+
+        let html = '';
+        data.logs.forEach(item => {
+          const isPub = (item.level === 'SUCCESS' && (item.category === 'PUBLICATION' || item.category === 'FIRST_SOLUTION' || item.pub_type));
+          const isErr = (item.level === 'ERROR');
+          const isWarn = (item.level === 'WARNING');
+
+          let rowClass = 'log-row';
+          if (isPub) rowClass += ' is-publication';
+          else if (isErr) rowClass += ' is-error';
+          else if (isWarn) rowClass += ' is-warning';
+          else rowClass += ' is-info';
+
+          const timeStr = item.created_at ? new Date(item.created_at).toLocaleTimeString('es-CO', { hour12: false }) : '--:--:--';
+          const rpcBadge = item.rpc_name ? `<span class="log-tag-rpc">${item.rpc_name}</span>` : '';
+          
+          let levelBadgeClass = 'log-tag-level ' + (item.level ? item.level.toLowerCase() : 'info');
+          let levelLabel = item.level;
+          if (isPub) {
+            levelBadgeClass = 'log-tag-level success';
+            levelLabel = (item.pub_type === 'FIRST_SOLUTION' || item.category === 'FIRST_SOLUTION') ? '🎈 FIRST SOL' : '🏆 PUBLICADO';
+          }
+
+          html += `
+            <div class="${rowClass}">
+              <span class="log-time">[${timeStr}]</span>
+              ${rpcBadge}
+              <span class="${levelBadgeClass}">${levelLabel}</span>
+              <span class="log-msg">${item.message}</span>
+            </div>
+          `;
+        });
+
+        container.innerHTML = html;
+
+        if (document.getElementById('chk-auto-scroll').checked) {
+          container.scrollTop = container.scrollHeight;
+        }
+      } catch(e) {
+        console.warn('Error fetching logs:', e);
+      }
+    }
+
     async function init() {
       await loadConfig();
       await loadCountriesSelect();
-      document.getElementById('inp-text').addEventListener('input', onTextInput);
+      const el = document.getElementById('inp-text');
+      if (el) {
+        el.addEventListener('input', onTextInput);
+        el.addEventListener('focus', () => {
+          state.isUserTyping = true;
+        });
+        el.addEventListener('blur', () => {
+          state.isUserTyping = false;
+          if (state.stats && state.isCustom && el.value.trim()) {
+            const updated = syncStatsIntoText(el.value, state.stats);
+            if (updated !== el.value) {
+              el.value = updated;
+              state.savedText = updated;
+              saveTextSilently();
+              refreshPreviewText();
+            }
+          }
+        });
+      }
       loadStatus();
-      loadPreviewStats();
+      await loadPreviewStats();
       loadRankingImage();
       loadFirstSolutions();
+      fetchLogs();
     }
 
     init();

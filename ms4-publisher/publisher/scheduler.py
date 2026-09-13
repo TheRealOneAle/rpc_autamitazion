@@ -28,9 +28,27 @@ def _get_now_bogota():
 def _next_cutoff(base_dt=None):
     ref = base_dt or _get_now_bogota()
     cutoff = ref.replace(hour=_END_HOUR, minute=_END_MINUTE, second=0, microsecond=0)
-    if ref >= cutoff:
+    if base_dt and ref >= cutoff:
         cutoff += timedelta(days=1)
     return cutoff
+
+
+def is_competition_active(now_dt=None) -> bool:
+    """Retorna True si estamos dentro del horario de competencia (antes de las 18:00 hora de Colombia)."""
+    now = now_dt or _get_now_bogota()
+    return now.hour < _END_HOUR
+
+
+def cancel_hourly_jobs():
+    """Cancela el job de publicación horaria para evitar ejecuciones periódicas fuera de competencia."""
+    global _scheduler
+    if _scheduler and _scheduler.get_job('rpc_hourly_publication'):
+        try:
+            _scheduler.remove_job('rpc_hourly_publication')
+            log.info("[SCHEDULER] Job de publicación horaria 'rpc_hourly_publication' cancelado.")
+            print("[SCHEDULER] Job de publicación horaria 'rpc_hourly_publication' cancelado.")
+        except Exception as e:
+            log.warning(f"[SCHEDULER] Error cancelando job horario: {e}")
 
 
 def _ensure_scheduler():
@@ -104,6 +122,15 @@ def _check_first_solutions_job():
 def start_publication_cycle(custom_cutoff=None):
     """Inicia el ciclo regular de publicaciones (cada hora en punto hasta el cutoff) y el sensor First Solution."""
     global _scheduler, _scheduled_info
+    now = _get_now_bogota()
+
+    # Si estamos fuera del horario de competencia (después de las 6pm) y no hay cutoff manual, no programar ciclo recurrente
+    if not is_competition_active(now) and not custom_cutoff:
+        log.info("[SCHEDULER] Fuera de horario de competencia (>= 18:00). No se inicia ciclo horario recurrente.")
+        print("[SCHEDULER] Fuera de horario de competencia (>= 18:00). No se inicia ciclo horario recurrente.")
+        cancel_hourly_jobs()
+        return False
+
     scheduler = _ensure_scheduler()
 
     cutoff = custom_cutoff or _next_cutoff()

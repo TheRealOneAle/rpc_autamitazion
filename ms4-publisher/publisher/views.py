@@ -5,17 +5,19 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.conf import settings
+from django.db.models import Q
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
 from .models import (
     SocialToken, SystemConfig, UserConfig, PublicationLog,
-    CoachSubscription, FirstSolutionEvent,
+    CoachSubscription, FirstSolutionEvent, ExecutionLog,
 )
 from .serializers import (
     SocialTokenSerializer, SocialTokenWriteSerializer, UserConfigSerializer,
     PublicationLogSerializer, CoachSubscriptionSerializer, FirstSolutionEventSerializer,
+    ExecutionLogSerializer,
 )
 
 log = logging.getLogger(__name__)
@@ -74,6 +76,123 @@ def configuracion(request):
     return render(request, 'publisher/config.html')
 
 
+def get_last_publication_info(user=None):
+    """Devuelve la información de la última publicación realizada (si fue Top o First Solution, y de qué RPC)."""
+    # 1. Buscar en ExecutionLog (los más recientes con SUCCESS)
+    qs = ExecutionLog.objects.filter(level='SUCCESS', pub_type__in=['TOP', 'FIRST_SOLUTION'])
+    if user and user.is_authenticated:
+        qs = qs.filter(user=user)
+    last_exec = qs.first()
+
+    # 2. Buscar en FirstSolutionEvent
+    fs_qs = FirstSolutionEvent.objects.filter(success=True).exclude(post_id__isnull=True).exclude(post_id='')
+    if user and user.is_authenticated:
+        fs_qs = fs_qs.filter(user=user)
+    last_fs = fs_qs.order_by('-published_at').first()
+
+    # 3. Buscar en PublicationLog
+    pub_qs = PublicationLog.objects.filter(status='SUCCESS').exclude(post_id__isnull=True).exclude(post_id='')
+    if user and user.is_authenticated:
+        pub_qs = pub_qs.filter(user=user)
+    last_pub = pub_qs.order_by('-executed_at').first()
+
+    candidates = []
+
+    if last_exec:
+        clean_title = (
+            last_exec.message
+            .replace("🚀 Publicado con éxito: ", "")
+            .replace("🎈 Publicado con éxito: ", "")
+            .replace(" en Facebook.", "")
+        )
+        candidates.append({
+            "type": last_exec.pub_type,
+            "type_label": "First Solution" if last_exec.pub_type == "FIRST_SOLUTION" else "Top Ranking",
+            "title": clean_title,
+            "rpc_name": last_exec.rpc_name or "RPC",
+            "contest_key": last_exec.contest_key,
+            "timestamp": last_exec.created_at,
+            "post_id": last_exec.post_id,
+        })
+
+    if last_fs:
+        contest_parts = last_fs.contest_key.split('/')
+        num = contest_parts[1] if len(contest_parts) > 1 else contest_parts[0]
+        rpc_lbl = f"RPC {str(num).zfill(2)}"
+        candidates.append({
+            "type": "FIRST_SOLUTION",
+            "type_label": "First Solution",
+            "title": f"Problema {last_fs.problem_letter} por '{last_fs.team_name}'",
+            "rpc_name": rpc_lbl,
+            "contest_key": last_fs.contest_key,
+            "timestamp": last_fs.published_at,
+            "post_id": last_fs.post_id,
+        })
+
+    if last_pub:
+        scope = (last_pub.competition_data or {}).get("scope", "LATAM")
+        top_n = (last_pub.competition_data or {}).get("top_n", 10)
+        rpc_lbl = (last_pub.competition_data or {}).get("rpc_name", "")
+        if not rpc_lbl and user and user.is_authenticated:
+            c_num = _get_user_config(user, 'boca_contest', '')
+            if c_num and c_num.isdigit():
+                rpc_lbl = f"RPC {str(int(c_num)).zfill(2)}"
+        candidates.append({
+            "type": "TOP",
+            "type_label": "Top Ranking",
+            "title": f"Top {top_n} {scope}",
+            "rpc_name": rpc_lbl or "RPC",
+            "contest_key": "",
+            "timestamp": last_pub.executed_at,
+            "post_id": last_pub.post_id,
+        })
+
+    if not candidates:
+        return {
+            "has_publication": False,
+            "message": "Sin publicaciones registradas aún",
+        }
+
+    # Ordenar por timestamp descendente
+    candidates.sort(key=lambda x: x["timestamp"], reverse=True)
+    best = candidates[0]
+
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        bogota_tz = ZoneInfo('America/Bogota')
+    except ImportError:
+        from datetime import timezone, timedelta
+        bogota_tz = timezone(timedelta(hours=-5))
+
+    ts_local = best["timestamp"].astimezone(bogota_tz)
+    now = datetime.now(bogota_tz)
+    diff = max((now - ts_local).total_seconds(), 0)
+
+    if diff < 60:
+        time_ago = "Hace unos segundos"
+    elif diff < 3600:
+        time_ago = f"Hace {int(diff // 60)} min"
+    elif diff < 86400:
+        time_ago = f"Hace {int(diff // 3600)} h"
+    else:
+        time_ago = f"Hace {int(diff // 86400)} d"
+
+    return {
+        "has_publication": True,
+        "type": best["type"],
+        "type_label": best["type_label"],
+        "title": best["title"],
+        "rpc_name": best["rpc_name"],
+        "contest_key": best["contest_key"],
+        "timestamp": best["timestamp"].isoformat(),
+        "formatted_date": ts_local.strftime("%d/%m/%Y %H:%M"),
+        "time_ago": time_ago,
+        "post_id": best["post_id"],
+        "summary": f"{best['type_label']} ({best['rpc_name']}): {best['title']}",
+    }
+
+
 @login_required
 def preview_image(request):
     """Hace proxy de la imagen de ranking generada por MS2 para el contest del usuario, soportando país y top_n."""
@@ -85,8 +204,19 @@ def preview_image(request):
     top_n_param = request.GET.get('top_n', '')
     top_n = int(top_n_param) if top_n_param.isdigit() else 10
 
+    contest_num = str(int(contest)).zfill(2) if contest and contest.isdigit() else "01"
+    rpc_name = f"RPC {contest_num}"
+    from datetime import datetime
     try:
-        url = _bd_url(ms2_url, "/ranking.jpg", year, contest, country=country, top_n=top_n)
+        from zoneinfo import ZoneInfo
+        BOGOTA_TZ = ZoneInfo('America/Bogota')
+    except ImportError:
+        from datetime import timezone, timedelta
+        BOGOTA_TZ = timezone(timedelta(hours=-5))
+    datetime_str = datetime.now(BOGOTA_TZ).strftime("%d/%m/%Y %H:%M")
+
+    try:
+        url = _bd_url(ms2_url, "/ranking.jpg", year, contest, country=country, top_n=top_n, rpc_name=rpc_name, datetime_str=datetime_str)
         r = http_requests.get(url, timeout=35)
         r.raise_for_status()
         return HttpResponse(r.content, content_type="image/jpeg")
@@ -115,6 +245,7 @@ class StatusView(APIView):
         _ensure_user_defaults(request.user)
         schedule_info = get_schedule_info()
 
+        last_pub_info = get_last_publication_info(request.user)
         last_log = PublicationLog.objects.filter(user=request.user).first()
         proceso_activo = _get_user_config(request.user, 'proceso_activo', 'true')
         top_n = _get_user_config(request.user, 'top_n_size', '10')
@@ -132,6 +263,7 @@ class StatusView(APIView):
             "cutoff": schedule_info.get("cutoff"),
             "next_runs": schedule_info.get("next_runs", []),
             "last_log": PublicationLogSerializer(last_log).data if last_log else None,
+            "last_publication": last_pub_info,
         })
 
 
@@ -308,10 +440,28 @@ class WhitelistDeleteView(APIView):
 
 class TriggerView(APIView):
     def post(self, request):
-        from .scheduler import start_publication_cycle, get_cutoff
+        from .scheduler import start_publication_cycle, get_cutoff, cancel_hourly_jobs, BOGOTA_TZ
         from .orchestrator import _publish_for_user
+        from datetime import datetime
         import threading
 
+        now = datetime.now(BOGOTA_TZ)
+        is_outside_contest = (now.hour >= 18)
+
+        if is_outside_contest:
+            # Fuera de hora de competencia (después de las 6pm):
+            # Solo se publica esta vez puntual, sin reactivar publicaciones periódicas cada hora
+            cancel_hourly_jobs()
+            t = threading.Thread(
+                target=_publish_for_user,
+                kwargs={"user": request.user, "force": True, "final": True},
+                daemon=True,
+            )
+            t.start()
+            msg = "Publicación única iniciada (fuera de hora de competencia: solo se publica esta vez, no se programan publicaciones periódicas cada hora)."
+            return Response({"detail": msg, "single_run": True}, status=status.HTTP_202_ACCEPTED)
+
+        # Dentro del horario de competencia (antes de las 6pm): ciclo regular
         UserConfig.objects.update_or_create(
             user=request.user, key='proceso_activo',
             defaults={'value': 'true'}
@@ -332,13 +482,95 @@ class TriggerView(APIView):
 
 class LogsView(APIView):
     def get(self, request):
-        limit = int(request.query_params.get('limit', 20))
-        status_filter = request.query_params.get('status')
-        qs = PublicationLog.objects.filter(user=request.user)
-        if status_filter:
-            qs = qs.filter(status=status_filter.upper())
-        logs = qs[:limit]
-        return Response(PublicationLogSerializer(logs, many=True).data)
+        limit = int(request.query_params.get('limit', 150))
+        contest_filter = (request.query_params.get('contest') or '').strip()
+        level_filter = (request.query_params.get('level') or '').strip().upper()
+        category_filter = (request.query_params.get('category') or '').strip().upper()
+
+        qs = ExecutionLog.objects.all()
+        if request.user and request.user.is_authenticated:
+            qs = qs.filter(Q(user=request.user) | Q(user__isnull=True))
+
+        if contest_filter and contest_filter.lower() not in ('all', 'todos'):
+            qs = qs.filter(contest_key=contest_filter)
+
+        if level_filter and level_filter not in ('ALL', 'TODOS', ''):
+            if level_filter == 'PUBLICATIONS':
+                qs = qs.filter(level='SUCCESS', category__in=['PUBLICATION', 'FIRST_SOLUTION'])
+            else:
+                qs = qs.filter(level=level_filter)
+
+        if category_filter and category_filter not in ('ALL', 'TODOS', ''):
+            qs = qs.filter(category=category_filter)
+
+        logs = list(qs[:limit])
+        # Invertir para orden cronológico terminal: los más viejos arriba y los más nuevos abajo
+        logs.reverse()
+
+        # Si aún no hay registros en ExecutionLog, poblar a partir de PublicationLog y FirstSolutionEvent
+        if not logs and not contest_filter and not level_filter:
+            legacy_logs = []
+            for pl in PublicationLog.objects.filter(user=request.user)[:20]:
+                scope = (pl.competition_data or {}).get('scope', 'LATAM')
+                legacy_logs.append({
+                    "id": f"pl_{pl.id}",
+                    "contest_key": "",
+                    "rpc_name": "RPC",
+                    "pub_type": "TOP",
+                    "level": pl.status,
+                    "category": "PUBLICATION",
+                    "message": f"🚀 Publicado Top {scope}" if pl.status == "SUCCESS" else f"❌ {pl.error_message}",
+                    "post_id": pl.post_id,
+                    "details": pl.competition_data,
+                    "created_at": pl.executed_at.isoformat(),
+                })
+            for fs in FirstSolutionEvent.objects.filter(user=request.user)[:20]:
+                legacy_logs.append({
+                    "id": f"fs_{fs.id}",
+                    "contest_key": fs.contest_key,
+                    "rpc_name": f"RPC {fs.contest_key.split('/')[-1]}",
+                    "pub_type": "FIRST_SOLUTION",
+                    "level": "SUCCESS" if fs.success else "ERROR",
+                    "category": "FIRST_SOLUTION",
+                    "message": f"🎈 First Solution Problema {fs.problem_letter} por {fs.team_name}",
+                    "post_id": fs.post_id,
+                    "details": None,
+                    "created_at": fs.published_at.isoformat(),
+                })
+            legacy_logs.sort(key=lambda x: x["created_at"], reverse=False)
+            serialized_logs = legacy_logs[-limit:] if len(legacy_logs) > limit else legacy_logs
+        else:
+            serialized_logs = ExecutionLogSerializer(logs, many=True).data
+
+        # Obtener lista de contests disponibles
+        db_contests = list(ExecutionLog.objects.exclude(contest_key='').values_list('contest_key', flat=True).distinct())
+        fs_contests = list(FirstSolutionEvent.objects.exclude(contest_key='').values_list('contest_key', flat=True).distinct())
+        
+        current_year, current_contest = _user_contest(request.user)
+        current_key = f"{current_year}/{str(int(current_contest)).zfill(2)}" if current_year and current_contest and current_contest.isdigit() else ""
+
+        all_keys = set(db_contests + fs_contests)
+        if current_key:
+            all_keys.add(current_key)
+
+        contests_list = []
+        for ck in sorted(all_keys, reverse=True):
+            parts = ck.split('/')
+            c_num = parts[1] if len(parts) > 1 else parts[0]
+            label = f"RPC {str(c_num).zfill(2)} ({parts[0]})" if len(parts) > 1 else f"RPC {c_num}"
+            if ck == current_key:
+                label += " ⭐ (Activo)"
+            contests_list.append({"key": ck, "label": label, "is_current": ck == current_key})
+
+        last_pub = get_last_publication_info(request.user)
+
+        return Response({
+            "success": True,
+            "last_publication": last_pub,
+            "current_contest": current_key,
+            "contests": contests_list,
+            "logs": serialized_logs,
+        })
 
 
 class ConfigView(APIView):

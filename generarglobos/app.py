@@ -66,13 +66,26 @@ def _get_font(bold=False, size=20):
     return ImageFont.load_default(size=size)
 
 
-def _generate_first_solution_card(letter, team_name, university, time_minutes, language, color_hex, output_path, problem_name=None):
+def _generate_first_solution_card(letter, team_name, university, time_minutes, language, color_hex, output_path, problem_name=None, rpc_name="RPC", datetime_str=None):
     """Renders a high-definition (1200x630) graphical micro-card for a First Solution event."""
     from PIL import Image, ImageDraw, ImageFont
 
     w, h = 1200, 630
     card = Image.new('RGB', (w, h), (15, 23, 42))  # Sleek dark slate
     draw = ImageDraw.Draw(card)
+
+    if not rpc_name:
+        rpc_name = "RPC"
+
+    if not datetime_str:
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+            bogota_tz = ZoneInfo('America/Bogota')
+        except ImportError:
+            from datetime import timezone, timedelta
+            bogota_tz = timezone(timedelta(hours=-5))
+        datetime_str = datetime.now(bogota_tz).strftime("%d/%m/%Y %H:%M")
 
     color_clean = color_hex.lstrip('#')
     if len(color_clean) == 3:
@@ -92,6 +105,8 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     draw.rounded_rectangle([(35, 30), (w - 35, h - 30)], radius=24, fill=(30, 41, 59), outline=(51, 65, 85), width=2)
 
     font_fs = _get_font(bold=True, size=32)
+    font_badge = _get_font(bold=True, size=18)
+    font_date = _get_font(bold=False, size=18)
     font_prob = _get_font(bold=True, size=74)
     font_label = _get_font(bold=True, size=20)
     font_team = _get_font(bold=True, size=38)
@@ -101,6 +116,21 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
 
     # 1. "FIRST SOLUTION" en rojo
     draw.text((80, 75), "FIRST SOLUTION", font=font_fs, fill=red_color)
+
+    # 1b. Badge RPC y fecha/hora al lado de FIRST SOLUTION
+    fs_bbox = font_fs.getbbox("FIRST SOLUTION")
+    fs_w = fs_bbox[2] - fs_bbox[0]
+    badge_x = 80 + fs_w + 24
+    badge_text = rpc_name.strip().upper()
+    badge_bbox = font_badge.getbbox(badge_text)
+    badge_w = (badge_bbox[2] - badge_bbox[0]) + 18
+    badge_h = 28
+    badge_y = 78
+    draw.rounded_rectangle([(badge_x, badge_y), (badge_x + badge_w, badge_y + badge_h)], radius=6, fill=red_color)
+    draw.text((badge_x + 9, badge_y + 4), badge_text, font=font_badge, fill=(255, 255, 255))
+
+    date_text = str(datetime_str).strip()
+    draw.text((badge_x + badge_w + 14, badge_y + 4), date_text, font=font_date, fill=(148, 163, 184))
 
     # 2. Letra del problema en rojo: "PROBLEMA {letter}"
     let_str = letter.upper()
@@ -229,6 +259,8 @@ def first_solution_card():
     time_min = data.get('time_minutes') or data.get('min') or 0
     language = data.get('language') or data.get('lang') or 'C++'
     color = data.get('problem_color') or data.get('color') or FALLBACK_COLORS.get(letter, '#CF1F4A')
+    rpc_name = data.get('rpc_name') or data.get('contest_name') or 'RPC'
+    datetime_str = data.get('datetime_str') or ''
 
     prob_name = data.get('problem_name') or f"Problema {letter}"
 
@@ -236,7 +268,10 @@ def first_solution_card():
     card_path = os.path.join(CARDS_DIR, card_name)
 
     try:
-        _generate_first_solution_card(letter, team_name, university, time_min, language, color, card_path, problem_name=prob_name)
+        _generate_first_solution_card(
+            letter, team_name, university, time_min, language, color, card_path,
+            problem_name=prob_name, rpc_name=rpc_name, datetime_str=datetime_str
+        )
         return send_file(card_path, mimetype='image/png')
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

@@ -158,6 +158,7 @@ COUNTRY_KEYWORDS = {
 # Mapea patrones normalizados -> (Nombre oficial, Acrónimo, Código País)
 KNOWN_UNIVERSITIES = [
     # Colombia
+    (r'\b(ufpso|francisco de paula santander\s+(?:sede\s+)?oca[nñ]a|ufps\s+(?:sede\s+)?oca[nñ]a)\b', 'Universidad Francisco de Paula Santander Ocaña', 'UFPSO', 'CO'),
     (r'\b(ufps|francisco de paula santander)\b', 'Universidad Francisco de Paula Santander', 'UFPS', 'CO'),
     (r'\b(unal|nacional de colombia|universidad nacional)\b', 'Universidad Nacional de Colombia', 'UNAL', 'CO'),
     (r'\b(uniandes|los andes)\b', 'Universidad de los Andes', 'UniAndes', 'CO'),

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     SocialToken, SystemConfig, UserConfig, PublicationLog,
-    CoachSubscription, AllowedEmail, FirstSolutionEvent,
+    CoachSubscription, AllowedEmail, FirstSolutionEvent, ExecutionLog,
 )
 
 
@@ -35,6 +35,15 @@ class PublicationLogSerializer(serializers.ModelSerializer):
         fields = ['id', 'executed_at', 'status', 'post_id', 'error_message', 'competition_data']
 
 
+class ExecutionLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExecutionLog
+        fields = [
+            'id', 'contest_key', 'rpc_name', 'pub_type', 'level',
+            'category', 'message', 'post_id', 'details', 'created_at',
+        ]
+
+
 class FirstSolutionEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = FirstSolutionEvent
@@ -57,3 +66,4 @@ class AllowedEmailSerializer(serializers.ModelSerializer):
     class Meta:
         model = AllowedEmail
         fields = ['id', 'email', 'is_active', 'created_at', 'added_by_username']
+

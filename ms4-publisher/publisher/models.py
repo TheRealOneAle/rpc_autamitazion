@@ -86,6 +86,44 @@ class FirstSolutionEvent(models.Model):
         ordering = ['time_minutes']
 
 
+class ExecutionLog(models.Model):
+    """Registro unificado de actividad, publicaciones (Top y First Solution), y diagnósticos por contest."""
+    LEVEL_CHOICES = [
+        ('INFO', 'Info'),
+        ('SUCCESS', 'Success'),
+        ('WARNING', 'Warning'),
+        ('ERROR', 'Error'),
+    ]
+    CATEGORY_CHOICES = [
+        ('PUBLICATION', 'Publicación Top'),
+        ('FIRST_SOLUTION', 'First Solution'),
+        ('SCHEDULER', 'Programador'),
+        ('SCRAPER', 'Scraper BOCA'),
+        ('SYSTEM', 'Sistema'),
+    ]
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='execution_logs',
+    )
+    contest_key = models.CharField(max_length=50, db_index=True, blank=True, default='')
+    rpc_name = models.CharField(max_length=100, blank=True, default='')
+    pub_type = models.CharField(max_length=30, blank=True, default='')  # 'TOP' o 'FIRST_SOLUTION'
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='INFO')
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='SYSTEM')
+    message = models.TextField()
+    post_id = models.CharField(max_length=100, null=True, blank=True)
+    details = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'execution_log'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.level}] {self.rpc_name} - {self.message[:50]}"
+
+
+
 class CoachSubscription(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,

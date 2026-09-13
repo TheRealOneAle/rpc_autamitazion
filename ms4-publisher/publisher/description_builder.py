@@ -64,7 +64,11 @@ def build_description(user, competition_data: dict, final: bool = False, scope: 
     saved_text = _get_config(user, "publication_text", "").strip()
     if saved_text and scope == 'LATAM':
         import re
-        return re.sub(r'\bTop\s+\d+\b', f'Top {effective_top}', saved_text, flags=re.IGNORECASE)
+        text = re.sub(r'\bTop\s+\d+\b', f'Top {effective_top}', saved_text, flags=re.IGNORECASE)
+        if total_submissions > 0:
+            stats_pattern = r'(📈?\s*En la maratón se han registrado\s+)(?:\d+|\?)(.*?\bcon\s+)(?:\d+|\?)(.*?\bde\s+)(?:\d+|\?)(.*?\bequipos sumando problemas resueltos\.?)'
+            text = re.sub(stats_pattern, f"\\g<1>{total_submissions}\\g<2>{teams_with_solved}\\g<3>{total_teams}\\g<4>", text, flags=re.IGNORECASE)
+        return text
 
     # Ámbito / País
     is_latam = (scope.upper() in ('LATAM', 'GLOBAL', 'ALL', ''))
