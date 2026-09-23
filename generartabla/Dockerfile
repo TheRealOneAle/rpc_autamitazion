@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
     libpangoft2-1.0-0 \
     fontconfig \
     fonts-dejavu-core \
+    fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

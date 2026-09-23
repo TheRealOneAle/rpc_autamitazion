@@ -71,7 +71,7 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     from PIL import Image, ImageDraw, ImageFont
 
     w, h = 1200, 630
-    card = Image.new('RGB', (w, h), (15, 23, 42))  # Sleek dark slate
+    card = Image.new('RGB', (w, h), (244, 246, 247))  # Fondo clarito idéntico a las tablas de ranking (#f4f6f7)
     draw = ImageDraw.Draw(card)
 
     if not rpc_name:
@@ -96,13 +96,13 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     except Exception:
         prob_rgb = (207, 31, 74)
 
-    red_color = (239, 68, 68)  # Clean vivid red #EF4444
+    red_color = (207, 31, 74)  # Rojo oficial RPC #CF1F4A
 
     # Accent top border in red
     draw.rectangle([(0, 0), (w, 8)], fill=red_color)
 
-    # Inner container
-    draw.rounded_rectangle([(35, 30), (w - 35, h - 30)], radius=24, fill=(30, 41, 59), outline=(51, 65, 85), width=2)
+    # Inner container: blanco elegante con borde sutil (#ffffff con outline #e2e8f0)
+    draw.rounded_rectangle([(35, 30), (w - 35, h - 30)], radius=24, fill=(255, 255, 255), outline=(226, 232, 240), width=2)
 
     font_fs = _get_font(bold=True, size=32)
     font_badge = _get_font(bold=True, size=18)
@@ -114,7 +114,7 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     font_stats = _get_font(bold=True, size=22)
     font_footer = _get_font(bold=False, size=18)
 
-    # 1. "FIRST SOLUTION" en rojo
+    # 1. "FIRST SOLUTION" en rojo RPC
     draw.text((80, 75), "FIRST SOLUTION", font=font_fs, fill=red_color)
 
     # 1b. Badge RPC y fecha/hora al lado de FIRST SOLUTION
@@ -130,29 +130,29 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     draw.text((badge_x + 9, badge_y + 4), badge_text, font=font_badge, fill=(255, 255, 255))
 
     date_text = str(datetime_str).strip()
-    draw.text((badge_x + badge_w + 14, badge_y + 4), date_text, font=font_date, fill=(148, 163, 184))
+    draw.text((badge_x + badge_w + 14, badge_y + 4), date_text, font=font_date, fill=(100, 116, 139))
 
     # 2. Letra del problema en rojo: "PROBLEMA {letter}"
     let_str = letter.upper()
     draw.text((80, 125), f"PROBLEMA {let_str}", font=font_prob, fill=red_color)
 
-    # 3. "Equipo" y nombre del equipo de competencia
-    draw.text((80, 235), "Equipo", font=font_label, fill=(148, 163, 184))
+    # 3. "Equipo" y nombre del equipo de competencia (oscuro de alto contraste)
+    draw.text((80, 235), "Equipo", font=font_label, fill=(100, 116, 139))
     disp_team = _truncate_text(team_name, font_team, 730)
-    draw.text((80, 268), disp_team, font=font_team, fill=(255, 255, 255))
+    draw.text((80, 268), disp_team, font=font_team, fill=(26, 26, 26))
 
     # 4. Universidad abajo del nombre del equipo
     if university and university != "Desconocida":
         disp_univ = _truncate_text(university, font_univ, 730)
-        draw.text((80, 325), disp_univ, font=font_univ, fill=(203, 213, 225))
+        draw.text((80, 325), disp_univ, font=font_univ, fill=(71, 85, 105))
 
-    # 5. Stats Pill (tiempo y lenguaje)
-    draw.rounded_rectangle([(80, 415), (750, 475)], radius=12, fill=(15, 23, 42), outline=(51, 65, 85), width=2)
+    # 5. Stats Pill (tiempo y lenguaje) con fondo suave y texto azul legible
+    draw.rounded_rectangle([(80, 415), (750, 475)], radius=12, fill=(241, 245, 249), outline=(203, 213, 225), width=2)
     stats_text = f"Minuto {time_minutes}   |   Lenguaje: {language}"
-    draw.text((105, 433), stats_text, font=font_stats, fill=(56, 189, 248))
+    draw.text((105, 433), stats_text, font=font_stats, fill=(2, 132, 199))
 
-    # 6. Hashtags
-    draw.text((80, 530), "#RedProgramacionCompetitiva   #RPC   #FirstSolution", font=font_footer, fill=(100, 116, 139))
+    # 6. Hashtags en tono gris sutil
+    draw.text((80, 530), "#RedProgramacionCompetitiva   #RPC   #FirstSolution", font=font_footer, fill=(148, 163, 184))
 
     # 6. Balloon Graphic with Letter
     globo_path = os.path.join(GLOBOS_DIR, f"{let_str}.png")

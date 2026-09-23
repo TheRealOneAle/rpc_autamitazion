@@ -262,6 +262,7 @@ class StatusView(APIView):
             "scheduled_start": schedule_info.get("scheduled_start"),
             "cutoff": schedule_info.get("cutoff"),
             "next_runs": schedule_info.get("next_runs", []),
+            "unfreeze_active": schedule_info.get("unfreeze_active", False),
             "last_log": PublicationLogSerializer(last_log).data if last_log else None,
             "last_publication": last_pub_info,
         })
@@ -299,8 +300,12 @@ class FirstSolutionsListView(APIView):
         except Exception as e:
             log.warning(f"Error consultando first solutions en vivo: {e}")
 
-        # 2. Eventos registrados en BD
-        db_events = FirstSolutionEvent.objects.filter(contest_key=contest_key)
+        # 2. Eventos registrados en BD (buscando formato normalizado y crudo)
+        contest_num = str(int(contest)).zfill(2) if contest and contest.isdigit() else contest
+        contest_key_norm = f"{year}/{contest_num}"
+        db_events = FirstSolutionEvent.objects.filter(
+            Q(contest_key=contest_key) | Q(contest_key=contest_key_norm)
+        )
         db_map = {e.problem_letter: FirstSolutionEventSerializer(e).data for e in db_events}
 
         # Combinar
@@ -323,16 +328,62 @@ class FirstSolutionsListView(APIView):
             "total_published": len([m for m in merged if m.get("is_published")]),
         })
 
+    def delete(self, request):
+        """Elimina eventos First Solution de la BD para la maratón actual (o un problema específico)."""
+        year, contest = _user_contest(request.user)
+        contest_num = str(int(contest)).zfill(2) if contest and contest.isdigit() else contest
+        contest_key = f"{year}/{contest_num}"
+        contest_raw = f"{year}/{contest}"
+
+        letter = request.query_params.get("letter")
+        if not letter and isinstance(request.data, dict):
+            letter = request.data.get("letter")
+
+        qs = FirstSolutionEvent.objects.filter(Q(contest_key=contest_key) | Q(contest_key=contest_raw))
+        if letter:
+            qs = qs.filter(problem_letter=str(letter).strip().upper())
+
+        count = qs.count()
+        qs.delete()
+
+        rpc_name = f"RPC {contest_num}"
+        ExecutionLog.objects.create(
+            user=request.user,
+            contest_key=contest_key,
+            rpc_name=rpc_name,
+            pub_type="FIRST_SOLUTION",
+            level="WARNING",
+            category="FIRST_SOLUTION",
+            message=f"🗑️ Se eliminaron {count} registro(s) de First Solution de la base de datos (problema: {letter.upper() if letter else 'TODOS'}).",
+            details={"problem_letter": letter.upper() if letter else None, "deleted_count": count},
+        )
+
+        return Response({
+            "success": True,
+            "deleted_count": count,
+            "message": f"Se eliminaron {count} registro(s) de First Solution de la BD."
+        })
+
+
+class ClearFirstSolutionsView(APIView):
+    """Endpoint unificado para limpiar registros First Solution vía POST o DELETE."""
+    def post(self, request):
+        return FirstSolutionsListView().delete(request)
+
+    def delete(self, request):
+        return FirstSolutionsListView().delete(request)
+
 
 class PublishFirstSolutionTriggerView(APIView):
     """Dispara manualmente la publicación de un First Solution."""
     def post(self, request):
         from .orchestrator import publish_first_solution_event
         fs_data = request.data.get("fs_data")
+        force = bool(request.data.get("force", True))
         if not fs_data or not isinstance(fs_data, dict):
             return Response({"error": "fs_data es requerido como objeto"}, status=status.HTTP_400_BAD_REQUEST)
 
-        ok, result = publish_first_solution_event(fs_data, user=request.user)
+        ok, result = publish_first_solution_event(fs_data, user=request.user, force=force)
         if ok:
             return Response({"success": True, "post_id": result})
         return Response({"success": False, "error": result}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -596,6 +647,17 @@ class ConfigView(APIView):
                 user=request.user, key=key, defaults={"value": val_str}
             )
             updated.append(UserConfigSerializer(obj).data)
+
+        if 'proceso_activo' in request.data:
+            val_active = str(request.data['proceso_activo']).lower() == 'true'
+            act_text = "reanudadas" if val_active else "DETENIDAS"
+            ExecutionLog.objects.create(
+                user=request.user,
+                level="INFO" if val_active else "WARNING",
+                category="SYSTEM",
+                message=f"Publicaciones {act_text} explícitamente por el usuario {request.user.username}.",
+                details={"proceso_activo": val_active, "changed_by": request.user.username}
+            )
 
         if 'top_n_size' in request.data:
             import re

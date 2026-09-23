@@ -80,10 +80,25 @@ def _publish_for_user(user, final=False, force=False):
     print(f"[ORQ] Iniciando ciclo para {user_label} (final={final}, force={force})")
 
     if not force:
-        proceso_activo = _get_user_config(user, "proceso_activo", "false").lower()
+        proceso_activo = _get_user_config(user, "proceso_activo", "true").lower()
         if proceso_activo != "true":
             log.info(f"[ORQ] {user_label}: proceso_activo=False. Ciclo omitido.")
             print(f"[ORQ] {user_label}: proceso_activo=False. Ciclo omitido.")
+            return
+
+        # Si estamos fuera del horario de competencia activa (>= 18:00) y no es final ni forzado:
+        # omitir publicación regular porque el tablero está congelado desde las 17:00.
+        # El monitor de descongelación se encarga de publicar el TABLERO FINAL cuando cambie.
+        from datetime import datetime, timezone, timedelta
+        try:
+            from zoneinfo import ZoneInfo
+            BOGOTA_TZ = ZoneInfo('America/Bogota')
+        except ImportError:
+            BOGOTA_TZ = timezone(timedelta(hours=-5))
+        now_col = datetime.now(BOGOTA_TZ)
+        if not final and now_col.hour >= 18:
+            log.info(f"[ORQ] {user_label}: {now_col.strftime('%H:%M')} >= 18:00 (tablero congelado desde 17:00). Publicación regular omitida.")
+            print(f"[ORQ] {user_label}: {now_col.strftime('%H:%M')} >= 18:00 (tablero congelado). Publicación regular omitida; esperando descongelación.")
             return
 
     try:
@@ -237,7 +252,7 @@ def _publish_for_user(user, final=False, force=False):
             )
 
 
-def publish_first_solution_event(fs_data: dict, user=None):
+def publish_first_solution_event(fs_data: dict, user=None, force: bool = False):
     """Publica inmediatamente un evento First Solution en Facebook y lo registra en BD."""
     from django.contrib.auth.models import User
     from .models import FirstSolutionEvent, SocialToken
@@ -279,9 +294,12 @@ def publish_first_solution_event(fs_data: dict, user=None):
 
     # Verificar si ya está registrado
     existing = FirstSolutionEvent.objects.filter(contest_key=contest_key, problem_letter=letter).first()
-    if existing and existing.success and existing.post_id:
+    if not force and existing and existing.success and existing.post_id:
         log.info(f"[FS] First Solution para problema {letter} ya fue publicado previamente (post_id={existing.post_id}).")
         return True, f"Ya publicado (post_id={existing.post_id})"
+
+    if force and existing and existing.post_id:
+        log.info(f"[FS] Publicación forzada de First Solution problema {letter} (post previo: {existing.post_id}).")
 
     ms3_url = _get_config("ms3_url") or getattr(settings, 'MS3_URL', 'http://generarglobos:5000')
 

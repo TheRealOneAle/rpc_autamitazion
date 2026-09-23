@@ -5,6 +5,7 @@ from .views import (
     BocaConfigView, CoachSubscribeView, CoachListView, CoachStatsView,
     ScheduleStartView, WhitelistView, WhitelistDeleteView,
     CountriesListView, FirstSolutionsListView, PublishFirstSolutionTriggerView,
+    ClearFirstSolutionsView,
 )
 
 urlpatterns = [
@@ -21,6 +22,7 @@ urlpatterns = [
     path('boca-config/', BocaConfigView.as_view()),
     path('countries/', CountriesListView.as_view()),
     path('first-solutions/', FirstSolutionsListView.as_view()),
+    path('first-solutions/clear/', ClearFirstSolutionsView.as_view()),
     path('publish/first-solution/', PublishFirstSolutionTriggerView.as_view()),
     path('coaches/', CoachListView.as_view()),
     path('coaches/subscribe/', CoachSubscribeView.as_view()),

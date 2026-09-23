@@ -338,6 +338,65 @@
     }
     .fs-badge.published { background: var(--green-light); color: var(--green-text); }
     .fs-badge.pending { background: var(--border); color: var(--text-sub); }
+    .btn-clear-fs {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-sub);
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+    .btn-clear-fs:hover {
+      background: rgba(239, 68, 68, 0.12);
+      color: var(--red);
+      border-color: var(--red);
+    }
+    .btn-action-fs {
+      border: none;
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .btn-action-fs.pub {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-action-fs.pub:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+    .btn-action-fs.repub {
+      background: var(--card-bg);
+      border: 1px solid var(--primary);
+      color: var(--primary);
+    }
+    .btn-action-fs.repub:hover:not(:disabled) {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-action-fs.del {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-sub);
+      padding: 3px 6px;
+    }
+    .btn-action-fs.del:hover:not(:disabled) {
+      background: rgba(239, 68, 68, 0.12);
+      color: var(--red);
+      border-color: var(--red);
+    }
+    .btn-action-fs:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
 
     /* LOG MODAL & TERMINAL CONSOLE */
     .modal-backdrop {
@@ -585,8 +644,8 @@
           <div id="last-pub-time" style="font-size:0.76rem;color:var(--text-hint);"></div>
         </div>
 
-        <button class="action" id="btn-publish" disabled>Publicar rankings activos ahora</button>
-        <button class="action" id="btn-stop">Detener publicaciones</button>
+        <button type="button" class="action" id="btn-publish" disabled>Publicar rankings activos ahora</button>
+        <button type="button" class="action" id="btn-stop">Detener publicaciones</button>
         <p id="publish-msg"></p>
       </div>
 
@@ -594,14 +653,18 @@
       <div class="card">
         <h2>
           <span>🎈 Sensor First Solution</span>
-          <span id="fs-count-badge" style="font-size:0.75rem;padding:2px 8px;border-radius:10px;background:var(--primary-light);color:var(--primary);">0 resueltos</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button type="button" class="btn-clear-fs" onclick="clearFirstSolutionsFromDB()" title="Borrar registros de First Solution en la base de datos para volver a probar">🗑️ Limpiar BD</button>
+            <span id="fs-count-badge" style="font-size:0.75rem;padding:2px 8px;border-radius:10px;background:var(--primary-light);color:var(--primary);">0 resueltos</span>
+          </div>
         </h2>
         <p class="next-run" style="margin-bottom:8px;">
-          Primeros envíos aceptados detectados en la maratón en tiempo real.
+          Primeros envíos aceptados detectados en tiempo real. Puedes publicar manualmente en Facebook o limpiar la BD.
         </p>
         <div class="fs-list" id="fs-list">
           <div style="font-size:0.8rem;color:var(--text-sub);padding:10px;text-align:center;">Cargando First Solutions...</div>
         </div>
+        <p id="fs-feedback-msg" style="margin-top:8px;font-size:0.8rem;min-height:16px;"></p>
       </div>
 
       <!-- PROGRAMACIÓN DE INICIO -->
@@ -1041,6 +1104,8 @@
       }
     }
 
+    window._firstSolutionsMap = {};
+
     async function loadFirstSolutions() {
       try {
         const res = await fetch(`${API}/api/first-solutions/`);
@@ -1055,19 +1120,29 @@
             return;
           }
 
+          window._firstSolutionsMap = {};
           let html = '';
           data.first_solutions.forEach(fs => {
+            window._firstSolutionsMap[fs.problem_letter] = fs;
             const flag = COUNTRY_FLAGS[fs.country_code] || '';
             const statusClass = fs.is_published ? 'published' : 'pending';
             const statusText = fs.is_published ? '✓ Publicado' : '⏳ Detectado';
             html += `
-              <div class="fs-item">
+              <div class="fs-item" id="fs-item-${fs.problem_letter}">
                 <div class="fs-letter" style="background:${fs.problem_color || '#CF1F4A'}">${fs.problem_letter}</div>
                 <div class="fs-info">
                   <strong>${fs.team_name}</strong> ${flag} • ${fs.university || 'RPC'}
                   <div style="font-size:0.75rem;color:var(--text-sub);">Min ${fs.time_minutes} con ${fs.language}</div>
                 </div>
-                <span class="fs-badge ${statusClass}">${statusText}</span>
+                <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                  <span class="fs-badge ${statusClass}">${statusText}</span>
+                  <button type="button" class="btn-action-fs ${fs.is_published ? 'repub' : 'pub'}" id="btn-pub-fs-${fs.problem_letter}" onclick="triggerManualFS('${fs.problem_letter}')" title="${fs.is_published ? 'Volver a publicar en Facebook (forzar)' : 'Publicar ahora en Facebook'}">
+                    ${fs.is_published ? '🔄 Republicar' : '📤 Publicar'}
+                  </button>
+                  <button type="button" class="btn-action-fs del" onclick="clearFirstSolutionsFromDB('${fs.problem_letter}')" title="Borrar registro de la BD para este problema">
+                    🗑️
+                  </button>
+                </div>
               </div>
             `;
           });
@@ -1078,10 +1153,122 @@
       }
     }
 
+    async function clearFirstSolutionsFromDB(letter) {
+      const msgTarget = document.getElementById('fs-feedback-msg');
+      const confirmText = letter
+        ? `¿Estás seguro de que deseas eliminar el registro de First Solution del problema ${letter} de la base de datos?\nEsto permitirá volver a publicarlo en Facebook.`
+        : `¿Estás seguro de que deseas eliminar TODOS los registros de First Solution de la base de datos para esta maratón?\nEsto permitirá volver a publicarlos manualmente o por el sensor.`;
+
+      if (!window.confirm(confirmText)) return;
+
+      if (msgTarget) {
+        msgTarget.style.color = 'var(--text-sub)';
+        msgTarget.textContent = 'Eliminando registros de la base de datos...';
+      }
+
+      try {
+        const res = await fetch(`${API}/api/first-solutions/clear/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+          },
+          body: JSON.stringify({ letter: letter || null })
+        });
+        const d = await res.json();
+        if (res.ok && d.success) {
+          if (msgTarget) {
+            msgTarget.style.color = 'var(--green-text)';
+            msgTarget.textContent = `✓ ${d.message || 'Registros eliminados exitosamente.'}`;
+            setTimeout(() => { if (msgTarget) msgTarget.textContent = ''; }, 5000);
+          }
+          await loadFirstSolutions();
+          await loadStatus();
+        } else {
+          if (msgTarget) {
+            msgTarget.style.color = 'var(--red)';
+            msgTarget.textContent = `Error: ${d.error || 'No se pudieron eliminar los registros'}`;
+          }
+        }
+      } catch (e) {
+        console.error('Error clearing FS:', e);
+        if (msgTarget) {
+          msgTarget.style.color = 'var(--red)';
+          msgTarget.textContent = `Error de conexión: ${e.message}`;
+        }
+      }
+    }
+
+    async function triggerManualFS(letter) {
+      const item = (window._firstSolutionsMap || {})[letter];
+      if (!item) {
+        alert(`No se encontró la información del problema ${letter}`);
+        return;
+      }
+      const btn = document.getElementById(`btn-pub-fs-${letter}`);
+      const origText = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Publicando...';
+      }
+      const msgTarget = document.getElementById('fs-feedback-msg');
+      if (msgTarget) {
+        msgTarget.style.color = 'var(--text-sub)';
+        msgTarget.textContent = `Publicando First Solution del problema ${letter} en Facebook...`;
+      }
+
+      try {
+        const res = await fetch(`${API}/api/publish/first-solution/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+          },
+          body: JSON.stringify({ fs_data: item, force: true })
+        });
+        const d = await res.json();
+        if (res.ok && d.success) {
+          if (msgTarget) {
+            msgTarget.style.color = 'var(--green-text)';
+            msgTarget.textContent = `✓ ¡Problema ${letter} publicado en Facebook! (Post ID: ${d.post_id || 'OK'})`;
+            setTimeout(() => { if (msgTarget) msgTarget.textContent = ''; }, 6000);
+          }
+          await loadFirstSolutions();
+          await loadStatus();
+        } else {
+          if (msgTarget) {
+            msgTarget.style.color = 'var(--red)';
+            msgTarget.textContent = `Error al publicar problema ${letter}: ${d.error || 'Error desconocido'}`;
+          }
+          alert(`No se pudo publicar: ${d.error || 'Error desconocido'}`);
+        }
+      } catch (e) {
+        console.error('Error publishing FS:', e);
+        if (msgTarget) {
+          msgTarget.style.color = 'var(--red)';
+          msgTarget.textContent = `Error de red al publicar: ${e.message}`;
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
+      }
+    }
+
     async function loadStatus() {
       try {
         const r = await fetch(`${API}/api/status/`);
+        if (!r.ok) {
+          console.warn('Status fetch non-OK:', r.status);
+          return;
+        }
         const d = await r.json();
+        if (typeof d.proceso_activo !== 'boolean') {
+          console.warn('proceso_activo missing or invalid:', d);
+          return;
+        }
+
         document.getElementById('dot-proceso').className = 'dot ' + (d.proceso_activo ? 'on' : 'off');
         document.getElementById('label-proceso').textContent = d.proceso_activo
           ? 'Publicaciones automáticas activas'
@@ -1117,7 +1304,11 @@
         const nextEl = document.getElementById('next-run');
         if (d.scheduler_running) {
           const parts = (d.next_runs || []).map(x => `${x.label}: ${fmt(x.next_run)}`);
-          parts.push(`Cierre: ${fmt(d.cutoff)}`);
+          if (d.unfreeze_active) {
+            parts.push('🧊 Esperando descongelación para Tablero Final');
+          } else {
+            parts.push(`Cierre: ${fmt(d.cutoff)}`);
+          }
           nextEl.textContent = parts.join(' · ');
         } else {
           nextEl.textContent = d.cutoff
@@ -1137,7 +1328,7 @@
           btnCancel.style.display = 'none';
         }
       } catch(e) {
-        document.getElementById('label-proceso').textContent = 'Sin conexión con el servicio';
+        console.warn('loadStatus connection error:', e);
       }
     }
 
@@ -1307,6 +1498,14 @@
       const btnStop = document.getElementById('btn-stop');
       const msg = document.getElementById('publish-msg');
       const resuming = btnStop.classList.contains('resume');
+
+      if (!resuming) {
+        const confirmed = window.confirm("¿Estás seguro de que deseas DETENER las publicaciones automáticas?");
+        if (!confirmed) {
+          return;
+        }
+      }
+
       const newValue = resuming ? 'true' : 'false';
       btnStop.disabled = true;
       try {

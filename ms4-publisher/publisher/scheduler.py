@@ -40,15 +40,17 @@ def is_competition_active(now_dt=None) -> bool:
 
 
 def cancel_hourly_jobs():
-    """Cancela el job de publicación horaria para evitar ejecuciones periódicas fuera de competencia."""
+    """Cancela los jobs de publicación periódica para evitar ejecuciones fuera de competencia."""
     global _scheduler
-    if _scheduler and _scheduler.get_job('rpc_hourly_publication'):
-        try:
-            _scheduler.remove_job('rpc_hourly_publication')
-            log.info("[SCHEDULER] Job de publicación horaria 'rpc_hourly_publication' cancelado.")
-            print("[SCHEDULER] Job de publicación horaria 'rpc_hourly_publication' cancelado.")
-        except Exception as e:
-            log.warning(f"[SCHEDULER] Error cancelando job horario: {e}")
+    if _scheduler:
+        for jid in ('rpc_hourly_publication', 'rpc_unfreeze_detector'):
+            if _scheduler.get_job(jid):
+                try:
+                    _scheduler.remove_job(jid)
+                    log.info(f"[SCHEDULER] Job '{jid}' cancelado.")
+                    print(f"[SCHEDULER] Job '{jid}' cancelado.")
+                except Exception as e:
+                    log.warning(f"[SCHEDULER] Error cancelando job '{jid}': {e}")
 
 
 def _ensure_scheduler():
@@ -119,15 +121,132 @@ def _check_first_solutions_job():
             print(f"[SENSOR FS] Error en polling para {user.username}: {e}")
 
 
+def _fetch_scoreboard_signature(ms1_url, year, contest):
+    """Obtiene una firma del scoreboard actual desde boca-scraper para detectar descongelación."""
+    import requests
+    import hashlib
+    import json
+    try:
+        url = f"{ms1_url}/api/ranking?contest={year}%2F{str(int(contest)).zfill(2)}&top_n=100"
+        r = requests.get(url, timeout=30)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        if not data.get("success"):
+            return None
+        rows = data.get("rows", [])
+        if not rows:
+            return None
+        summary = [(r.get("usernumber"), r.get("problemas_resueltos"), r.get("points")) for r in rows]
+        total_ac = sum(r.get("problemas_resueltos", 0) for r in rows)
+        total_pts = sum(r.get("points", 0) for r in rows)
+        sig_str = json.dumps(summary, sort_keys=True)
+        h = hashlib.sha256(sig_str.encode('utf-8')).hexdigest()
+        return {
+            "hash": h,
+            "count": len(rows),
+            "total_ac": total_ac,
+            "total_pts": total_pts,
+        }
+    except Exception as e:
+        log.warning(f"[DESCONGELACIÓN] Error obteniendo firma del scoreboard: {e}")
+        return None
+
+
+def _check_unfreeze_job():
+    """Job periódico (cada 5 min) que revisa si el scoreboard post-17:00 ya se descongeló para publicar TABLERO FINAL."""
+    from django.contrib.auth.models import User
+    from .models import UserConfig, SystemConfig, ExecutionLog
+    from .orchestrator import _get_config, _user_contest_params, orchestrate_all
+    from django.conf import settings
+    import json
+
+    now = _get_now_bogota()
+    # Solo monitorear a partir de las 17:00 (hora en que el tablero se congela en RPC)
+    if now.hour < 17:
+        return
+
+    ms1_url = _get_config("ms1_url") or settings.MS1_URL
+
+    for user in User.objects.filter(is_active=True):
+        try:
+            proceso_activo = UserConfig.objects.filter(user=user, key='proceso_activo').first()
+            if not proceso_activo or proceso_activo.value.lower() != 'true':
+                continue
+
+            year, contest = _user_contest_params(user)
+            contest_key = f"{year}/{str(int(contest)).zfill(2)}"
+            freeze_key = f"frozen_5pm_sig_{contest_key}"
+            done_key = f"unfreeze_final_published_{contest_key}"
+
+            # Si ya se publicó la final de este contest tras descongelar, omitir
+            is_done = SystemConfig.objects.filter(key=done_key).first()
+            if is_done and is_done.value == 'true':
+                continue
+
+            current_sig = _fetch_scoreboard_signature(ms1_url, year, contest)
+            if not current_sig:
+                continue
+
+            frozen_cfg = SystemConfig.objects.filter(key=freeze_key).first()
+            if not frozen_cfg:
+                # Instantánea base de las 5pm guardada al inicio del congelamiento
+                SystemConfig.objects.update_or_create(
+                    key=freeze_key,
+                    defaults={'value': json.dumps(current_sig)}
+                )
+                msg = f"Instantánea base de las 17:00 guardada para {contest_key} (hash={current_sig['hash'][:8]}, total_ac={current_sig['total_ac']}). Esperando descongelación para publicar Tablero Final..."
+                log.info(f"[DESCONGELACIÓN] {msg}")
+                print(f"[DESCONGELACIÓN] {msg}")
+                continue
+
+            try:
+                base_sig = json.loads(frozen_cfg.value)
+            except Exception:
+                base_sig = None
+
+            if not base_sig:
+                continue
+
+            if current_sig["hash"] == base_sig.get("hash"):
+                # Scoreboard idéntico al de las 5pm -> Sigue congelado
+                log_msg = f"Tablero para {contest_key} a las {now.strftime('%H:%M')} es IDÉNTICO al de las 17:00 (aún congelado). No se publica. Siguiente revisión en 5 min."
+                log.info(f"[DESCONGELACIÓN] {log_msg}")
+                print(f"[DESCONGELACIÓN] {log_msg}")
+            else:
+                # Scoreboard diferente -> ¡Se ha descongelado!
+                unfreeze_msg = f"¡Tablero para {contest_key} se ha DESCONGELADO! (ACs: {base_sig.get('total_ac')} -> {current_sig['total_ac']}). Publicando TABLERO FINAL..."
+                log.info(f"[DESCONGELACIÓN] {unfreeze_msg}")
+                print(f"[DESCONGELACIÓN] {unfreeze_msg}")
+
+                SystemConfig.objects.update_or_create(key=done_key, defaults={'value': 'true'})
+
+                ExecutionLog.objects.create(
+                    user=user,
+                    contest_key=contest_key,
+                    pub_type="TOP",
+                    level="SUCCESS",
+                    category="PUBLICATION",
+                    message=f"🧊 ¡Tablero descongelado detectado a las {now.strftime('%H:%M')}! Procediendo a publicar TABLERO FINAL.",
+                    details={"base_ac": base_sig.get('total_ac'), "new_ac": current_sig['total_ac']}
+                )
+
+                orchestrate_all(final=True)
+
+        except Exception as e:
+            log.exception(f"[DESCONGELACIÓN] Error en chequeo de descongelación: {e}")
+            print(f"[DESCONGELACIÓN] Error en chequeo: {e}")
+
+
 def start_publication_cycle(custom_cutoff=None):
-    """Inicia el ciclo regular de publicaciones (cada hora en punto hasta el cutoff) y el sensor First Solution."""
+    """Inicia el ciclo regular de publicaciones, sensor First Solution y monitor de descongelación post-17:00."""
     global _scheduler, _scheduled_info
     now = _get_now_bogota()
 
-    # Si estamos fuera del horario de competencia (después de las 6pm) y no hay cutoff manual, no programar ciclo recurrente
-    if not is_competition_active(now) and not custom_cutoff:
-        log.info("[SCHEDULER] Fuera de horario de competencia (>= 18:00). No se inicia ciclo horario recurrente.")
-        print("[SCHEDULER] Fuera de horario de competencia (>= 18:00). No se inicia ciclo horario recurrente.")
+    # Si estamos después de las 22:00 y no hay cutoff manual, no programar ciclo recurrente
+    if now.hour >= 22 and not custom_cutoff:
+        log.info("[SCHEDULER] Fuera de horario de competencia (>= 22:00). No se inicia ciclo horario recurrente.")
+        print("[SCHEDULER] Fuera de horario de competencia (>= 22:00). No se inicia ciclo horario recurrente.")
         cancel_hourly_jobs()
         return False
 
@@ -140,16 +259,17 @@ def start_publication_cycle(custom_cutoff=None):
 
     from .orchestrator import orchestrate_all
 
-    # 1. Publicación horaria de scoreboard
-    scheduler.add_job(
-        func=orchestrate_all,
-        trigger='cron',
-        minute=0,
-        id='rpc_hourly_publication',
-        replace_existing=True,
-        misfire_grace_time=120,
-        coalesce=True,
-    )
+    # 1. Publicación horaria de scoreboard (solo si estamos en horas de competencia activa < 18:00)
+    if is_competition_active(now):
+        scheduler.add_job(
+            func=orchestrate_all,
+            trigger='cron',
+            minute=0,
+            id='rpc_hourly_publication',
+            replace_existing=True,
+            misfire_grace_time=120,
+            coalesce=True,
+        )
 
     # 2. Sensor reactivo First Solution (polling cada 35s)
     scheduler.add_job(
@@ -162,7 +282,23 @@ def start_publication_cycle(custom_cutoff=None):
         coalesce=True,
     )
 
-    # 3. Publicación final
+    # 3. Monitor de descongelación del scoreboard (cada 5 min a partir de las 17:00)
+    scheduler.add_job(
+        func=_check_unfreeze_job,
+        trigger='interval',
+        minutes=5,
+        id='rpc_unfreeze_detector',
+        replace_existing=True,
+        misfire_grace_time=120,
+        coalesce=True,
+    )
+
+    # Si ya son las 17:00 o más, ejecutar una verificación inmediata en segundo plano
+    if now.hour >= 17:
+        import threading
+        threading.Thread(target=_check_unfreeze_job, daemon=True).start()
+
+    # 4. Publicación final de seguridad / respaldo
     scheduler.add_job(
         func=_final_and_stop,
         trigger='date',
@@ -171,7 +307,7 @@ def start_publication_cycle(custom_cutoff=None):
         replace_existing=True,
     )
 
-    msg = f"Scheduler iniciado: publicación horaria + sensor First Solution (35s) + final a las {cutoff.strftime('%H:%M')}"
+    msg = f"Scheduler iniciado: publicación horaria + First Solution (35s) + monitor descongelación (5m) + cierre a las {cutoff.strftime('%H:%M')}"
     log.info(msg)
     print(f"[SCHEDULER] {msg}")
 
@@ -211,6 +347,8 @@ def schedule_publication(start_datetime: datetime, end_datetime: datetime = None
         scheduler.remove_job('rpc_hourly_publication')
     if scheduler.get_job('rpc_first_solutions_sensor'):
         scheduler.remove_job('rpc_first_solutions_sensor')
+    if scheduler.get_job('rpc_unfreeze_detector'):
+        scheduler.remove_job('rpc_unfreeze_detector')
     if scheduler.get_job('rpc_final_publication'):
         scheduler.remove_job('rpc_final_publication')
 
@@ -300,7 +438,11 @@ def get_schedule_info():
     cutoff_dt = _next_cutoff()
 
     next_runs = []
+    unfreeze_active = False
     if _scheduler and _scheduler.running:
+        if _scheduler.get_job('rpc_unfreeze_detector') and now.hour >= 17:
+            unfreeze_active = True
+
         for job in _scheduler.get_jobs():
             if job.next_run_time:
                 label = job.id
@@ -308,6 +450,8 @@ def get_schedule_info():
                     label = 'Publicación cada hora'
                 elif job.id == 'rpc_first_solutions_sensor':
                     label = 'Sensor First Solution (35s)'
+                elif job.id == 'rpc_unfreeze_detector':
+                    label = 'Monitor descongelación (5 min)'
                 elif job.id == 'rpc_final_publication':
                     label = 'Publicación final'
                 elif job.id == 'rpc_scheduled_start':
@@ -332,4 +476,5 @@ def get_schedule_info():
         "scheduled_start": scheduled_start or _scheduled_info.get('scheduled_start'),
         "cutoff": _scheduled_info.get('cutoff') or cutoff_dt.isoformat(),
         "next_runs": next_runs,
+        "unfreeze_active": unfreeze_active,
     }
