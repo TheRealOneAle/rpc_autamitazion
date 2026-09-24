@@ -167,6 +167,7 @@ def _build_elastic_css(top_n=10, row_count=10):
         flag_size = "26px"
         page_height = "1300px"
         prob_w = "42px"
+        cred_font = "0.74rem"
     elif row_count <= 10:
         th_pad = "10px 6px"
         td_pad = "7px 5px"
@@ -176,6 +177,7 @@ def _build_elastic_css(top_n=10, row_count=10):
         flag_size = "22px"
         page_height = "1650px"
         prob_w = "36px"
+        cred_font = "0.72rem"
     elif row_count <= 15:
         th_pad = "8px 4px"
         td_pad = "5px 4px"
@@ -185,6 +187,7 @@ def _build_elastic_css(top_n=10, row_count=10):
         flag_size = "19px"
         page_height = "1950px"
         prob_w = "32px"
+        cred_font = "0.71rem"
     else:  # top 20+
         th_pad = "6px 3px"
         td_pad = "3px 3px"
@@ -194,6 +197,7 @@ def _build_elastic_css(top_n=10, row_count=10):
         flag_size = "16px"
         page_height = "2250px"
         prob_w = "28px"
+        cred_font = "0.70rem"
 
     return f"""
 @page {{ size: 1100px {page_height}; margin: 0; }}
@@ -372,6 +376,17 @@ tr:nth-child(even) {{ background-color: #fafbfc; }}
     text-overflow: ellipsis;
     white-space: nowrap;
 }}
+.pie-creditos {{
+    width: {table_width};
+    margin: 6px auto 0 auto;
+    text-align: right;
+    color: #64748b;
+    font-size: {cred_font};
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    padding-right: 4px;
+    box-sizing: border-box;
+}}
 """
 
 
@@ -464,6 +479,7 @@ def _ranking_html(rows, cantidadProblemas, problemasTeam, titulo="Top 10 Latinoa
 <tr><th class="col-num">#</th><th class="col-team">Equipo</th>{headers}<th class="col-total">Total</th></tr>
 {rows_html}
 </table>
+<div class="pie-creditos">Creado por @trueyalejo @j_gab_torres</div>
 </body>
 </html>"""
 

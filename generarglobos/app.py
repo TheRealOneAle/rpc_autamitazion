@@ -113,6 +113,7 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     font_univ = _get_font(bold=False, size=26)
     font_stats = _get_font(bold=True, size=22)
     font_footer = _get_font(bold=False, size=18)
+    font_credits = _get_font(bold=False, size=16)
 
     # 1. "FIRST SOLUTION" en rojo RPC
     draw.text((80, 75), "FIRST SOLUTION", font=font_fs, fill=red_color)
@@ -151,8 +152,7 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     stats_text = f"Minuto {time_minutes}   |   Lenguaje: {language}"
     draw.text((105, 433), stats_text, font=font_stats, fill=(2, 132, 199))
 
-    # 6. Hashtags en tono gris sutil
-    draw.text((80, 530), "#RedProgramacionCompetitiva   #RPC   #FirstSolution", font=font_footer, fill=(148, 163, 184))
+
 
     # 6. Logo RPC y Globo con letra
     balloon_cx = w - 240  # Centro horizontal del área derecha (x=960)
@@ -202,6 +202,15 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
             card.paste(balloon, (balloon_x, balloon_y), balloon)
         except Exception as e:
             print(f"[warn] paste balloon failed: {e}", flush=True)
+
+    # 7. Footer: Hashtags a la izquierda y créditos de creadores a la derecha
+    draw.text((80, 545), "#RedProgramacionCompetitiva   #RPC   #FirstSolution", font=font_footer, fill=(148, 163, 184))
+
+    credits_text = "Creado por @trueyalejo @j_gab_torres"
+    bbox_cred = font_credits.getbbox(credits_text)
+    cw = bbox_cred[2] - bbox_cred[0]
+    cred_x = (w - 65) - cw
+    draw.text((cred_x, 545), credits_text, font=font_credits, fill=(115, 130, 150))
 
     card.save(output_path, 'PNG', quality=95)
 
