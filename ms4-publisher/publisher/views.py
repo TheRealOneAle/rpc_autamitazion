@@ -581,40 +581,7 @@ class LogsView(APIView):
         # Invertir para orden cronológico terminal: los más viejos arriba y los más nuevos abajo
         logs.reverse()
 
-        # Si aún no hay registros en ExecutionLog, poblar a partir de PublicationLog y FirstSolutionEvent
-        if not logs and not contest_filter and not level_filter and not search_query:
-            legacy_logs = []
-            for pl in PublicationLog.objects.filter(user=request.user)[:20]:
-                scope = (pl.competition_data or {}).get('scope', 'LATAM')
-                legacy_logs.append({
-                    "id": f"pl_{pl.id}",
-                    "contest_key": "",
-                    "rpc_name": "RPC",
-                    "pub_type": "TOP",
-                    "level": pl.status,
-                    "category": "PUBLICATION",
-                    "message": f"🚀 Publicado Top {scope}" if pl.status == "SUCCESS" else f"❌ {pl.error_message}",
-                    "post_id": pl.post_id,
-                    "details": pl.competition_data,
-                    "created_at": pl.executed_at.isoformat(),
-                })
-            for fs in FirstSolutionEvent.objects.filter(user=request.user)[:20]:
-                legacy_logs.append({
-                    "id": f"fs_{fs.id}",
-                    "contest_key": fs.contest_key,
-                    "rpc_name": f"RPC {fs.contest_key.split('/')[-1]}",
-                    "pub_type": "FIRST_SOLUTION",
-                    "level": "SUCCESS" if fs.success else "ERROR",
-                    "category": "FIRST_SOLUTION",
-                    "message": f"🎈 First Solution Problema {fs.problem_letter} por {fs.team_name}",
-                    "post_id": fs.post_id,
-                    "details": None,
-                    "created_at": fs.published_at.isoformat(),
-                })
-            legacy_logs.sort(key=lambda x: x["created_at"], reverse=False)
-            serialized_logs = legacy_logs[-limit:] if len(legacy_logs) > limit else legacy_logs
-        else:
-            serialized_logs = ExecutionLogSerializer(logs, many=True).data
+        serialized_logs = ExecutionLogSerializer(logs, many=True).data
 
         # Obtener lista de contests disponibles (filtrando claves inválidas o genéricas)
         db_contests = [
