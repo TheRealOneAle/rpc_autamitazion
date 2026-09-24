@@ -154,7 +154,27 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     # 6. Hashtags en tono gris sutil
     draw.text((80, 530), "#RedProgramacionCompetitiva   #RPC   #FirstSolution", font=font_footer, fill=(148, 163, 184))
 
-    # 6. Balloon Graphic with Letter
+    # 6. Logo RPC y Globo con letra
+    balloon_cx = w - 240  # Centro horizontal del área derecha (x=960)
+
+    # 6a. Logo oficial RPC ubicado arriba del globo
+    logo_path = os.path.join(os.path.dirname(__file__), "logorpc", "rpc.png")
+    if not os.path.exists(logo_path):
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "generartabla", "logorpc", "rpc.png")
+
+    if os.path.exists(logo_path):
+        try:
+            logo_img = Image.open(logo_path).convert('RGBA')
+            logo_h = 74
+            logo_w = int(logo_img.width * (logo_h / logo_img.height))
+            logo_img = logo_img.resize((logo_w, logo_h), Image.Resampling.LANCZOS)
+            logo_x = balloon_cx - (logo_w // 2)
+            logo_y = 52
+            card.paste(logo_img, (logo_x, logo_y), logo_img)
+        except Exception as e:
+            print(f"[warn] paste logo failed: {e}", flush=True)
+
+    # 6b. Balloon Graphic with Letter (bajado para dar espacio al logo)
     globo_path = os.path.join(GLOBOS_DIR, f"{let_str}.png")
     if not os.path.exists(globo_path):
         _generate_balloon(let_str, globo_path, color_hex)
@@ -162,12 +182,12 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
     if os.path.exists(globo_path):
         try:
             balloon = Image.open(globo_path).convert('RGBA')
-            bw, bh = 240, 426
+            bw, bh = 220, 390
             balloon = balloon.resize((bw, bh), Image.Resampling.LANCZOS)
 
             # Draw prominent letter on balloon
             bdraw = ImageDraw.Draw(balloon)
-            bfont = _get_font(bold=True, size=76)
+            bfont = _get_font(bold=True, size=70)
             bbox_bl = bfont.getbbox(let_str)
             blw = bbox_bl[2] - bbox_bl[0]
             blh = bbox_bl[3] - bbox_bl[1]
@@ -177,7 +197,9 @@ def _generate_first_solution_card(letter, team_name, university, time_minutes, l
             bly = cy - blh // 2 - bbox_bl[1]
             bdraw.text((blx, bly), let_str, font=bfont, fill=(255, 255, 255), stroke_width=4, stroke_fill=(0, 0, 0))
 
-            card.paste(balloon, (w - 360, 100), balloon)
+            balloon_x = balloon_cx - (bw // 2)
+            balloon_y = 150
+            card.paste(balloon, (balloon_x, balloon_y), balloon)
         except Exception as e:
             print(f"[warn] paste balloon failed: {e}", flush=True)
 
