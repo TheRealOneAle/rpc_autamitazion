@@ -5,7 +5,7 @@ from .views import (
     BocaConfigView, CoachSubscribeView, CoachListView, CoachStatsView,
     ScheduleStartView, WhitelistView, WhitelistDeleteView,
     CountriesListView, FirstSolutionsListView, PublishFirstSolutionTriggerView,
-    ClearFirstSolutionsView,
+    ClearFirstSolutionsView, ClearLogsView,
 )
 
 urlpatterns = [
@@ -17,6 +17,7 @@ urlpatterns = [
     path('whitelist/<int:email_id>/', WhitelistDeleteView.as_view()),
     path('trigger/', TriggerView.as_view()),
     path('logs/', LogsView.as_view()),
+    path('logs/clear/', ClearLogsView.as_view()),
     path('config/', ConfigView.as_view()),
     path('token/', TokenView.as_view()),
     path('boca-config/', BocaConfigView.as_view()),

@@ -831,7 +831,7 @@
         <div class="banner-time" id="modal-last-pub-time">—</div>
       </div>
 
-      <!-- BARRA DE HERRAMIENTAS (Requisito 4: Separar por cada contest) -->
+      <!-- BARRA DE HERRAMIENTAS -->
       <div class="modal-toolbar">
         <div style="display:flex;align-items:center;gap:6px;">
           <label for="log-contest-select" style="font-size:0.75rem;font-weight:600;color:#8b949e;">Contest:</label>
@@ -843,12 +843,16 @@
         <div style="display:flex;align-items:center;gap:6px;">
           <label for="log-level-select" style="font-size:0.75rem;font-weight:600;color:#8b949e;">Filtrar:</label>
           <select id="log-level-select" onchange="fetchLogs()">
-            <option value="ALL">Todos los eventos</option>
-            <option value="PUBLICATIONS">✅ Solo Publicaciones (Verde)</option>
+            <option value="ALL">📋 Todos los eventos</option>
+            <option value="PUBLICATIONS">✅ Solo Publicaciones (Top y First Solve)</option>
             <option value="ERROR">❌ Solo Errores</option>
-            <option value="WARNING">⚠️ Solo Avisos</option>
+            <option value="WARNING">⚠️ Solo Avisos / Borrados</option>
             <option value="INFO">ℹ️ Solo Información</option>
           </select>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="text" id="log-search-input" placeholder="🔍 Buscar en logs..." oninput="onLogSearchInput()" style="background:#0d1117;border:1px solid #30363d;color:#c9d1d9;font-size:0.75rem;padding:3px 8px;border-radius:6px;width:130px;">
         </div>
 
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
@@ -858,11 +862,11 @@
           <label style="font-size:0.75rem;color:#8b949e;display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
             <input type="checkbox" id="chk-log-refresh" checked style="accent-color:#238636;" onchange="toggleLogRefresh()"> Auto-refresco
           </label>
-          <button type="button" onclick="fetchLogs()">
+          <button type="button" onclick="fetchLogs()" title="Recargar logs ahora">
             🔄 Actualizar
           </button>
-          <button type="button" onclick="clearLogScreen()">
-            🗑️ Limpiar
+          <button type="button" onclick="clearLogScreen()" title="Vaciar logs de la base de datos" style="background:#da3633;color:#fff;">
+            🗑️ Limpiar logs
           </button>
         </div>
       </div>
@@ -1574,21 +1578,65 @@
       }
     }
 
-    function clearLogScreen() {
-      document.getElementById('terminal-container').innerHTML =
-        '<div style="color:#8b949e;text-align:center;padding:20px;">Consola limpiada. Esperando nuevos registros...</div>';
+    let searchLogTimeout = null;
+    function onLogSearchInput() {
+      if (searchLogTimeout) clearTimeout(searchLogTimeout);
+      searchLogTimeout = setTimeout(fetchLogs, 250);
+    }
+
+    async function clearLogScreen() {
+      const contest = document.getElementById('log-contest-select').value;
+      const level = document.getElementById('log-level-select').value;
+      const contestMsg = (contest && contest !== 'ALL') ? `del concurso ${contest}` : 'de TODOS los concursos';
+      const levelMsg = (level && level !== 'ALL') ? `(filtro: ${level})` : '';
+
+      const confirmMsg = `¿Estás seguro de que deseas ELIMINAR los registros de logs ${contestMsg} ${levelMsg} de la base de datos?\n\nEsta acción vaciará el historial para que no vuelva a aparecer.`;
+      if (!window.confirm(confirmMsg)) return;
+
+      const container = document.getElementById('terminal-container');
+      container.innerHTML = '<div style="color:#8b949e;text-align:center;padding:20px;">Vaciando registros de la base de datos...</div>';
+
+      try {
+        const r = await fetch(`${API}/api/logs/clear/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({
+            contest: (contest && contest !== 'ALL') ? contest : null,
+            level: (level && level !== 'ALL') ? level : null
+          })
+        });
+        const d = await r.json();
+        if (r.ok && d.success) {
+          container.innerHTML = `<div style="color:#2ea043;text-align:center;padding:20px;font-weight:600;">✓ ${d.message || 'Logs eliminados correctamente de la base de datos.'}</div>`;
+          setTimeout(fetchLogs, 1500);
+        } else {
+          container.innerHTML = `<div style="color:#f85149;text-align:center;padding:20px;">Error al limpiar logs: ${d.error || 'Fallo de servidor'}</div>`;
+        }
+      } catch (err) {
+        console.error('Error clearing logs:', err);
+        container.innerHTML = `<div style="color:#f85149;text-align:center;padding:20px;">Error de red al limpiar logs: ${err.message}</div>`;
+      }
     }
 
     async function fetchLogs() {
-      const contest = document.getElementById('log-contest-select').value;
-      const level = document.getElementById('log-level-select').value;
+      const selContest = document.getElementById('log-contest-select');
+      const selLevel = document.getElementById('log-level-select');
+      const searchInput = document.getElementById('log-search-input');
       const container = document.getElementById('terminal-container');
+
+      const contest = selContest ? selContest.value : 'ALL';
+      const level = selLevel ? selLevel.value : 'ALL';
+      const search = searchInput ? searchInput.value.trim() : '';
 
       try {
         const params = new URLSearchParams();
         if (contest && contest !== 'ALL') params.set('contest', contest);
         if (level && level !== 'ALL') params.set('level', level);
-        params.set('limit', '120');
+        if (search) params.set('q', search);
+        params.set('limit', '150');
 
         const r = await fetch(`${API}/api/logs/?${params.toString()}`);
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1608,7 +1656,6 @@
           const modalTime = document.getElementById('modal-last-pub-time');
           if (modalTime) modalTime.textContent = `${lp.formatted_date} (${lp.time_ago})`;
 
-          // En dashboard principal
           const dashTag = document.getElementById('last-pub-tag');
           if (dashTag) {
             dashTag.style.background = isFs ? '#e11d48' : 'var(--primary)';
@@ -1624,17 +1671,21 @@
           if (modalTime) modalTime.textContent = '—';
         }
 
-        // 2. Actualizar lista de concursos en el selector si cambió o se carga por primera vez
-        const selContest = document.getElementById('log-contest-select');
-        if (data.contests && data.contests.length > 0) {
-          const currentVal = selContest.value;
-          let opts = '<option value="ALL">🌐 Todos los contests</option>';
-          data.contests.forEach(c => {
-            const isSelected = (currentVal === c.key) ? 'selected' : '';
-            opts += `<option value="${c.key}" ${isSelected}>${c.label}</option>`;
-          });
-          if (selContest.innerHTML !== opts) {
+        // 2. Actualizar lista de concursos SIN reiniciar la selección del usuario
+        if (selContest && data.contests && data.contests.length > 0) {
+          const newSignature = data.contests.map(c => c.key).join('|');
+          if (selContest.dataset.loadedSignature !== newSignature) {
+            selContest.dataset.loadedSignature = newSignature;
+            const currentSelected = selContest.value || 'ALL';
+            let opts = '<option value="ALL">🌐 Todos los contests</option>';
+            data.contests.forEach(c => {
+              opts += `<option value="${c.key}">${c.label}</option>`;
+            });
             selContest.innerHTML = opts;
+            selContest.value = currentSelected;
+            if (selContest.value !== currentSelected) {
+              selContest.value = 'ALL';
+            }
           }
         }
 
@@ -1646,24 +1697,34 @@
 
         let html = '';
         data.logs.forEach(item => {
-          const isPub = (item.level === 'SUCCESS' && (item.category === 'PUBLICATION' || item.category === 'FIRST_SOLUTION' || item.pub_type));
-          const isErr = (item.level === 'ERROR');
-          const isWarn = (item.level === 'WARNING');
+          const lvl = (item.level || '').toUpperCase();
+          const isErr = (lvl === 'ERROR' || lvl === 'FAILED');
+          const isWarn = (lvl === 'WARNING' || lvl === 'WARN' || lvl === 'SKIPPED');
+          const isPub = (lvl === 'SUCCESS' && (item.category === 'PUBLICATION' || item.category === 'FIRST_SOLUTION' || item.pub_type));
 
           let rowClass = 'log-row';
-          if (isPub) rowClass += ' is-publication';
-          else if (isErr) rowClass += ' is-error';
+          if (isErr) rowClass += ' is-error';
+          else if (isPub) rowClass += ' is-publication';
           else if (isWarn) rowClass += ' is-warning';
           else rowClass += ' is-info';
 
           const timeStr = item.created_at ? new Date(item.created_at).toLocaleTimeString('es-CO', { hour12: false }) : '--:--:--';
           const rpcBadge = item.rpc_name ? `<span class="log-tag-rpc">${item.rpc_name}</span>` : '';
           
-          let levelBadgeClass = 'log-tag-level ' + (item.level ? item.level.toLowerCase() : 'info');
-          let levelLabel = item.level;
-          if (isPub) {
+          let levelBadgeClass = 'log-tag-level info';
+          let levelLabel = item.level || 'INFO';
+          if (isErr) {
+            levelBadgeClass = 'log-tag-level error';
+            levelLabel = '❌ ERROR';
+          } else if (isPub) {
             levelBadgeClass = 'log-tag-level success';
             levelLabel = (item.pub_type === 'FIRST_SOLUTION' || item.category === 'FIRST_SOLUTION') ? '🎈 FIRST SOL' : '🏆 PUBLICADO';
+          } else if (isWarn) {
+            levelBadgeClass = 'log-tag-level warning';
+            levelLabel = '⚠️ AVISO';
+          } else {
+            levelBadgeClass = 'log-tag-level info';
+            levelLabel = 'ℹ️ INFO';
           }
 
           html += `
@@ -1678,7 +1739,7 @@
 
         container.innerHTML = html;
 
-        if (document.getElementById('chk-auto-scroll').checked) {
+        if (document.getElementById('chk-auto-scroll') && document.getElementById('chk-auto-scroll').checked) {
           container.scrollTop = container.scrollHeight;
         }
       } catch(e) {

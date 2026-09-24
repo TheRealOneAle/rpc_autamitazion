@@ -537,29 +537,52 @@ class LogsView(APIView):
         contest_filter = (request.query_params.get('contest') or '').strip()
         level_filter = (request.query_params.get('level') or '').strip().upper()
         category_filter = (request.query_params.get('category') or '').strip().upper()
+        search_query = (request.query_params.get('q') or request.query_params.get('search') or '').strip()
 
         qs = ExecutionLog.objects.all()
-        if request.user and request.user.is_authenticated:
+        if request.user and request.user.is_authenticated and not (request.user.is_superuser or request.user.is_staff):
             qs = qs.filter(Q(user=request.user) | Q(user__isnull=True))
 
-        if contest_filter and contest_filter.lower() not in ('all', 'todos'):
-            qs = qs.filter(contest_key=contest_filter)
+        if contest_filter and contest_filter.upper() not in ('ALL', 'TODOS', ''):
+            parts = contest_filter.split('/')
+            if len(parts) == 2 and parts[1].isdigit():
+                norm_key = f"{parts[0]}/{str(int(parts[1])).zfill(2)}"
+                raw_key = f"{parts[0]}/{int(parts[1])}"
+                qs = qs.filter(Q(contest_key=norm_key) | Q(contest_key=raw_key) | Q(contest_key=contest_filter))
+            else:
+                qs = qs.filter(contest_key=contest_filter)
 
         if level_filter and level_filter not in ('ALL', 'TODOS', ''):
-            if level_filter == 'PUBLICATIONS':
-                qs = qs.filter(level='SUCCESS', category__in=['PUBLICATION', 'FIRST_SOLUTION'])
+            if level_filter in ('PUBLICATIONS', 'PUBLICATION', 'EXITOSOS'):
+                qs = qs.filter(
+                    Q(level='SUCCESS', category__in=['PUBLICATION', 'FIRST_SOLUTION']) |
+                    Q(pub_type__in=['TOP', 'FIRST_SOLUTION'], level='SUCCESS')
+                )
+            elif level_filter in ('ERROR', 'ERRORES', 'ERR'):
+                qs = qs.filter(Q(level__iexact='ERROR') | Q(level__iexact='FAILED'))
+            elif level_filter in ('WARNING', 'AVISOS', 'WARN', 'ALERTA'):
+                qs = qs.filter(Q(level__iexact='WARNING') | Q(level__iexact='WARN') | Q(level__iexact='SKIPPED'))
+            elif level_filter in ('INFO', 'INFORMACION'):
+                qs = qs.filter(level__iexact='INFO')
             else:
-                qs = qs.filter(level=level_filter)
+                qs = qs.filter(level__iexact=level_filter)
 
         if category_filter and category_filter not in ('ALL', 'TODOS', ''):
-            qs = qs.filter(category=category_filter)
+            qs = qs.filter(category__iexact=category_filter)
+
+        if search_query:
+            qs = qs.filter(
+                Q(message__icontains=search_query) |
+                Q(rpc_name__icontains=search_query) |
+                Q(contest_key__icontains=search_query)
+            )
 
         logs = list(qs[:limit])
         # Invertir para orden cronológico terminal: los más viejos arriba y los más nuevos abajo
         logs.reverse()
 
         # Si aún no hay registros en ExecutionLog, poblar a partir de PublicationLog y FirstSolutionEvent
-        if not logs and not contest_filter and not level_filter:
+        if not logs and not contest_filter and not level_filter and not search_query:
             legacy_logs = []
             for pl in PublicationLog.objects.filter(user=request.user)[:20]:
                 scope = (pl.competition_data or {}).get('scope', 'LATAM')
@@ -593,9 +616,15 @@ class LogsView(APIView):
         else:
             serialized_logs = ExecutionLogSerializer(logs, many=True).data
 
-        # Obtener lista de contests disponibles
-        db_contests = list(ExecutionLog.objects.exclude(contest_key='').values_list('contest_key', flat=True).distinct())
-        fs_contests = list(FirstSolutionEvent.objects.exclude(contest_key='').values_list('contest_key', flat=True).distinct())
+        # Obtener lista de contests disponibles (filtrando claves inválidas o genéricas)
+        db_contests = [
+            c for c in ExecutionLog.objects.exclude(contest_key='').values_list('contest_key', flat=True).distinct()
+            if c and '/' in c and c.upper() != 'ALL'
+        ]
+        fs_contests = [
+            c for c in FirstSolutionEvent.objects.exclude(contest_key='').values_list('contest_key', flat=True).distinct()
+            if c and '/' in c and c.upper() != 'ALL'
+        ]
         
         current_year, current_contest = _user_contest(request.user)
         current_key = f"{current_year}/{str(int(current_contest)).zfill(2)}" if current_year and current_contest and current_contest.isdigit() else ""
@@ -622,6 +651,74 @@ class LogsView(APIView):
             "contests": contests_list,
             "logs": serialized_logs,
         })
+
+    def delete(self, request):
+        """Elimina registros de logs del sistema de la base de datos."""
+        contest_filter = (
+            request.query_params.get('contest') or
+            (request.data.get('contest') if isinstance(request.data, dict) else '') or
+            ''
+        ).strip()
+        level_filter = (
+            request.query_params.get('level') or
+            (request.data.get('level') if isinstance(request.data, dict) else '') or
+            ''
+        ).strip().upper()
+
+        qs = ExecutionLog.objects.all()
+        if request.user and request.user.is_authenticated and not (request.user.is_superuser or request.user.is_staff):
+            qs = qs.filter(Q(user=request.user) | Q(user__isnull=True))
+
+        if contest_filter and contest_filter.upper() not in ('ALL', 'TODOS', ''):
+            parts = contest_filter.split('/')
+            if len(parts) == 2 and parts[1].isdigit():
+                norm_key = f"{parts[0]}/{str(int(parts[1])).zfill(2)}"
+                raw_key = f"{parts[0]}/{int(parts[1])}"
+                qs = qs.filter(Q(contest_key=norm_key) | Q(contest_key=raw_key) | Q(contest_key=contest_filter))
+            else:
+                qs = qs.filter(contest_key=contest_filter)
+
+        if level_filter and level_filter not in ('ALL', 'TODOS', ''):
+            if level_filter in ('PUBLICATIONS', 'PUBLICATION', 'EXITOSOS'):
+                qs = qs.filter(
+                    Q(level='SUCCESS', category__in=['PUBLICATION', 'FIRST_SOLUTION']) |
+                    Q(pub_type__in=['TOP', 'FIRST_SOLUTION'], level='SUCCESS')
+                )
+            elif level_filter in ('ERROR', 'ERRORES', 'ERR'):
+                qs = qs.filter(Q(level__iexact='ERROR') | Q(level__iexact='FAILED'))
+            elif level_filter in ('WARNING', 'AVISOS', 'WARN', 'ALERTA'):
+                qs = qs.filter(Q(level__iexact='WARNING') | Q(level__iexact='WARN') | Q(level__iexact='SKIPPED'))
+            elif level_filter in ('INFO', 'INFORMACION'):
+                qs = qs.filter(level__iexact='INFO')
+            else:
+                qs = qs.filter(level__iexact=level_filter)
+
+        count = qs.count()
+        qs.delete()
+
+        # Si se limpian todos o publicaciones, también limpiar PublicationLog asociados
+        if not level_filter or level_filter in ('ALL', 'PUBLICATIONS', 'TODOS'):
+            pub_qs = PublicationLog.objects.all()
+            if request.user and request.user.is_authenticated and not (request.user.is_superuser or request.user.is_staff):
+                pub_qs = pub_qs.filter(user=request.user)
+            pub_count = pub_qs.count()
+            pub_qs.delete()
+            count += pub_count
+
+        return Response({
+            "success": True,
+            "deleted_count": count,
+            "message": f"Se eliminaron {count} registros de logs de la base de datos."
+        })
+
+
+class ClearLogsView(APIView):
+    """Endpoint unificado para vaciar registros de logs vía POST o DELETE."""
+    def post(self, request):
+        return LogsView().delete(request)
+
+    def delete(self, request):
+        return LogsView().delete(request)
 
 
 class ConfigView(APIView):
