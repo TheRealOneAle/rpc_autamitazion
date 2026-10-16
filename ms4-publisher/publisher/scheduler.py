@@ -100,6 +100,12 @@ def _check_first_solutions_job():
                 if not letter:
                     continue
 
+                # REGLA: Solo publicar si el usuario tiene enabled "Yes"
+                fs_enabled = str(fs.get("enabled", "")).strip().lower()
+                if fs_enabled and fs_enabled != "yes":
+                    log.warning(f"[SENSOR FS] Omitiendo problema {letter}: el equipo {fs.get('team_name')} ({fs.get('username')}) tiene enabled '{fs.get('enabled')}' (no es 'Yes'). No se publica.")
+                    continue
+
                 # Chequear si ya fue publicado
                 exists = FirstSolutionEvent.objects.filter(
                     contest_key=contest_key,

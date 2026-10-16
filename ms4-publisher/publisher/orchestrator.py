@@ -275,6 +275,34 @@ def publish_first_solution_event(fs_data: dict, user=None, force: bool = False):
     rpc_name = f"RPC {contest_num}"
     letter = fs_data.get("problem_letter", "A").upper()
 
+    # Validación estricta: solo publicar en Facebook si el usuario tiene enabled "Yes"
+    raw_enabled = fs_data.get("enabled")
+    if raw_enabled is not None:
+        if str(raw_enabled).strip().lower() != "yes":
+            msg = f"El equipo '{fs_data.get('team_name')}' ({fs_data.get('username')}) tiene enabled '{raw_enabled}' en BOCA. Solo se permite publicar si enabled es 'Yes'."
+            log.warning(f"[FS] Publicación cancelada: {msg}")
+            return False, msg
+    elif fs_data.get("username"):
+        # Si no viene enabled explícito, validar con boca-scraper
+        try:
+            ms1_url = _get_config("ms1_url") or getattr(settings, 'MS1_URL', 'http://boca-scraper:3001')
+            r_fs = requests.get(f"{ms1_url}/api/first-solutions?contest={year}%2F{contest}", timeout=10)
+            if r_fs.status_code == 200:
+                official_fs = r_fs.json().get("first_solutions", [])
+                match = next((x for x in official_fs if x.get("problem_letter", "").upper() == letter), None)
+                if match:
+                    if match.get("username", "").lower() != fs_data.get("username", "").lower():
+                        msg = f"El equipo '{fs_data.get('username')}' no es el First Solution oficial de '{letter}' (es '{match.get('username')}')."
+                        log.warning(f"[FS] {msg}")
+                        return False, msg
+                    fs_data["enabled"] = match.get("enabled", "Yes")
+                else:
+                    msg = f"No existe un First Solution oficial elegible con enabled 'Yes' para el problema {letter}."
+                    log.warning(f"[FS] {msg}")
+                    return False, msg
+        except Exception as e:
+            log.debug(f"[FS] Verificación secundaria con scraper omitida: {e}")
+
     from datetime import datetime
     try:
         from zoneinfo import ZoneInfo

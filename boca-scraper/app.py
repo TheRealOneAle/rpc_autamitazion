@@ -519,7 +519,7 @@ def _get_runs_data(base, force_fresh=False):
 
 
 def _fetch_users_map_from_boca(base):
-    """Obtiene el mapa de usuarios desde admin/user.php con nombre de competencia, universidad y país."""
+    """Obtiene el mapa de usuarios desde admin/user.php con nombre de competencia, universidad, país y estado enabled."""
     try:
         session = requests.Session()
         session.get(f"{base}/index.php", timeout=15)
@@ -538,18 +538,37 @@ def _fetch_users_map_from_boca(base):
         tables = soup.find_all("table")
         user_map = {}
         for table in tables:
-            for r in table.find_all("tr"):
+            rows = table.find_all("tr")
+            if not rows:
+                continue
+
+            header_cells = [c.get_text(strip=True).lower() for c in rows[0].find_all(["th", "td"])]
+            u_idx = header_cells.index("username") if "username" in header_cells else 2
+            e_idx = header_cells.index("enabled") if "enabled" in header_cells else 8
+            t_idx = header_cells.index("type") if "type" in header_cells else 4
+            f_idx = header_cells.index("fullname") if "fullname" in header_cells else 10
+            d_idx = header_cells.index("description") if "description" in header_cells else 11
+
+            for r in rows:
                 cells = [c.get_text(strip=True) for c in r.find_all(["td", "th"])]
-                if len(cells) >= 13 and cells[0].isdigit() and cells[4].lower() == "team":
-                    u_name = cells[2].lower()
-                    full_name = cells[10]
-                    univ = cells[11]
-                    country = cells[12]
-                    user_map[u_name] = {
-                        "userfullname": full_name,
-                        "university": univ,
-                        "country": country,
-                    }
+                if len(cells) > max(u_idx, e_idx, t_idx) and cells[0].isdigit():
+                    u_type = cells[t_idx].lower() if t_idx < len(cells) else ""
+                    if u_type == "team":
+                        u_name = cells[u_idx].lower()
+                        raw_enabled = cells[e_idx] if e_idx < len(cells) else "No"
+                        enabled_clean = raw_enabled.strip()
+                        is_enabled = (enabled_clean.lower() == "yes")
+                        full_name = cells[f_idx] if f_idx < len(cells) else ""
+                        univ = cells[d_idx] if d_idx < len(cells) else ""
+                        country = cells[12] if len(cells) > 12 else ""
+                        user_map[u_name] = {
+                            "username": cells[u_idx],
+                            "userfullname": full_name,
+                            "university": univ,
+                            "country": country,
+                            "enabled": enabled_clean,
+                            "is_enabled": is_enabled,
+                        }
         return user_map
     except Exception as e:
         print(f"[scraper] advertencia al obtener admin/user.php: {e}", flush=True)
@@ -867,15 +886,24 @@ def get_first_solutions():
             team_map[f"team{t['usernumber']}"] = t
             team_map[str(t["usernumber"])] = t
 
-        # Encontrar primer AC por letra
+        # Encontrar primer AC por letra (solo equipos con enabled == "Yes" en admin/user.php)
         first_solutions = {}
         for r in runs:
             if r["is_solved"]:
                 let = r["letter"].upper()
                 curr_min = r["time_minutes"]
-                if let not in first_solutions or curr_min < first_solutions[let]["time_minutes"]:
-                    u_key = r["username"].lower()
-                    u_info = users_map.get(u_key, {})
+                u_key = r["username"].lower()
+                u_info = users_map.get(u_key, {})
+
+                # REGLA ESTRICTA: El equipo DEBE tener enabled "Yes" en admin/user.php
+                # Caso contrario, se omite y el First Solve se asigna al siguiente equipo con enabled "Yes"
+                user_enabled = u_info.get("enabled", "").strip().lower()
+                if user_enabled != "yes":
+                    continue
+
+                if let not in first_solutions or curr_min < first_solutions[let]["time_minutes"] or (
+                    curr_min == first_solutions[let]["time_minutes"] and r["run_number"] < first_solutions[let]["run_number"]
+                ):
                     team_info = team_map.get(u_key, {})
                     if not team_info and u_info.get("userfullname"):
                         team_info = team_map.get(u_info["userfullname"].lower(), {})
@@ -883,7 +911,7 @@ def get_first_solutions():
                     # Priorizar nombre de competencia oficial
                     team_display_name = u_info.get("userfullname") or team_info.get("userfullname") or r["username"]
                     raw_univ = u_info.get("university") or team_info.get("university") or ""
-                    country_code = u_info.get("country") or team_info.get("country") or "CO"
+                    country_code = team_info.get("country") or u_info.get("country") or "CO"
 
                     univ_info = normalize_university(raw_univ, existing_country=country_code)
                     univ_display = raw_univ or univ_info.get("name") or "RPC"
@@ -902,6 +930,8 @@ def get_first_solutions():
                         "time_minutes": curr_min,
                         "language": r["language"],
                         "verdict": r["verdict"],
+                        "enabled": u_info.get("enabled", "Yes"),
+                        "is_enabled": True,
                     }
 
         result = [first_solutions[k] for k in sorted(first_solutions.keys())]
@@ -922,6 +952,7 @@ def get_stats():
         base, key = _base_from_request()
         teams, colors = _get_data(base)
         runs = _get_runs_data(base)
+        users_map = _get_users_map(base)
 
         total_teams = len(teams)
         teams_with_solved = sum(1 for t in teams if t["problemas_resueltos"] > 0)
@@ -952,13 +983,20 @@ def get_stats():
                 problem_stats[let]["total_submissions"] += 1
                 if r["is_solved"]:
                     problem_stats[let]["accepted_submissions"] += 1
-                    curr_fs = problem_stats[let]["first_solution"]
-                    if curr_fs is None or r["time_minutes"] < curr_fs["time_minutes"]:
-                        problem_stats[let]["first_solution"] = {
-                            "username": r["username"],
-                            "time_minutes": r["time_minutes"],
-                            "language": r["language"],
-                        }
+                    u_key = r["username"].lower()
+                    u_info = users_map.get(u_key, {})
+                    user_enabled = u_info.get("enabled", "").strip().lower()
+                    if user_enabled == "yes":
+                        curr_fs = problem_stats[let]["first_solution"]
+                        if curr_fs is None or r["time_minutes"] < curr_fs["time_minutes"] or (
+                            r["time_minutes"] == curr_fs["time_minutes"] and r["run_number"] < curr_fs.get("run_number", float("inf"))
+                        ):
+                            problem_stats[let]["first_solution"] = {
+                                "username": r["username"],
+                                "time_minutes": r["time_minutes"],
+                                "language": r["language"],
+                                "run_number": r["run_number"],
+                            }
 
             # Contar veredictos
             v = r["verdict"]

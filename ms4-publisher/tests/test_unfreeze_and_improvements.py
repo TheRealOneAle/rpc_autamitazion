@@ -178,6 +178,96 @@ class TestUnfreezeAndImprovements(unittest.TestCase):
                                         mock_pub_force.assert_called_once()
                                         mock_uoc.assert_called_once()
 
+    def test_publish_first_solution_blocks_when_not_enabled(self):
+        """Verifica que publish_first_solution_event RECHACE la publicación si enabled != 'Yes'."""
+        from publisher.orchestrator import publish_first_solution_event
+
+        user = MagicMock()
+        user.username = "test_user"
+        user.is_active = True
+
+        fs_data_disabled = {
+            "problem_letter": "C",
+            "problem_name": "Problem C",
+            "team_name": "Gruslin",
+            "username": "gruslin",
+            "university": "UNAD",
+            "time_minutes": 45,
+            "language": "Python3",
+            "enabled": "No",
+            "is_enabled": False,
+        }
+
+        with patch("django.contrib.auth.models.User.objects.filter", return_value=[user]):
+            with patch("publisher.models.SocialToken.objects.filter") as mock_token:
+                mock_t = MagicMock()
+                mock_t.access_token = "token"
+                mock_t.page_id = "page"
+                mock_token.return_value.order_by.return_value.first.return_value = mock_t
+
+                with patch("publisher.orchestrator._user_contest_params", return_value=("2026", "09")):
+                    with patch("publisher.facebook_publisher.publish_photo") as mock_pub:
+                        ok, res = publish_first_solution_event(fs_data_disabled, user=user, force=True)
+                        self.assertFalse(ok)
+                        self.assertIn("enabled", res.lower())
+                        # Debe asegurarse que NUNCA se llame al publicador de Facebook
+                        mock_pub.assert_not_called()
+
+    def test_scheduler_skips_disabled_teams_first_solution(self):
+        """Verifica que _check_first_solutions_job descarte eventos con enabled != 'Yes'."""
+        from publisher.scheduler import _check_first_solutions_job
+
+        user = MagicMock()
+        user.username = "test_user"
+        user.is_active = True
+
+        mock_cfg_activo = MagicMock()
+        mock_cfg_activo.value = "true"
+        mock_cfg_auto = MagicMock()
+        mock_cfg_auto.value = "true"
+
+        def mock_user_config(user, key):
+            if key == 'proceso_activo':
+                return mock_cfg_activo
+            if key == 'fs_auto_publish':
+                return mock_cfg_auto
+            return None
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "success": True,
+            "first_solutions": [
+                {
+                    "problem_letter": "C",
+                    "team_name": "Disabled Team",
+                    "username": "disabled_team",
+                    "enabled": "No",
+                },
+                {
+                    "problem_letter": "D",
+                    "team_name": "Enabled Team",
+                    "username": "enabled_team",
+                    "enabled": "Yes",
+                },
+            ]
+        }
+
+        with patch("django.contrib.auth.models.User.objects.filter", return_value=[user]):
+            with patch("publisher.models.UserConfig.objects.filter") as mock_uc_filter:
+                mock_uc_filter.side_effect = lambda user, key: MagicMock(first=lambda: mock_user_config(user, key))
+                with patch("publisher.orchestrator._user_contest_params", return_value=("2026", "09")):
+                    with patch("requests.get", return_value=mock_resp):
+                        with patch("publisher.models.FirstSolutionEvent.objects.filter") as mock_event_filter:
+                            mock_event_filter.return_value.exists.return_value = False
+                            with patch("publisher.orchestrator.publish_first_solution_event") as mock_publish:
+                                _check_first_solutions_job()
+                                # Solo debe publicarse el problema D (enabled == 'Yes')
+                                self.assertEqual(mock_publish.call_count, 1)
+                                published_fs = mock_publish.call_args[0][0]
+                                self.assertEqual(published_fs["problem_letter"], "D")
+                                self.assertEqual(published_fs["enabled"], "Yes")
+
 
 if __name__ == "__main__":
     unittest.main()

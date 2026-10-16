@@ -52,7 +52,85 @@ class BocaScraperTestCase(unittest.TestCase):
         self.assertGreater(data['solved_problems_count'], 0)
         print(f"First solutions count: {data['solved_problems_count']}")
         for fs in data['first_solutions']:
-            print(f"  FS Problem {fs['problem_letter']}: {fs['team_name']} ({fs['university']}) min {fs['time_minutes']}")
+            self.assertEqual(fs.get('enabled'), 'Yes')
+            self.assertTrue(fs.get('is_enabled'))
+            print(f"  FS Problem {fs['problem_letter']}: {fs['team_name']} ({fs['university']}) min {fs['time_minutes']} [enabled={fs.get('enabled')}]")
+
+    def test_first_solutions_filters_disabled_teams(self):
+        """Verifica que equipos con enabled != 'Yes' sean ignorados y el first solve sea del primer equipo con enabled == 'Yes'."""
+        from unittest.mock import patch
+
+        mock_runs = [
+            # Problema C: equipo_deshabilitado resuelve en min 15 con 'No'
+            {
+                "run_number": 101,
+                "site": 1,
+                "username": "disabled_team",
+                "time_minutes": 15,
+                "letter": "C",
+                "language": "C++",
+                "verdict": "YES",
+                "is_solved": True,
+            },
+            # Problema C: equipo_habilitado resuelve en min 25 con 'Yes'
+            {
+                "run_number": 102,
+                "site": 1,
+                "username": "enabled_team",
+                "time_minutes": 25,
+                "letter": "C",
+                "language": "Python3",
+                "verdict": "YES",
+                "is_solved": True,
+            },
+            # Problema X: solo resuelto por equipo_deshabilitado
+            {
+                "run_number": 103,
+                "site": 1,
+                "username": "disabled_team",
+                "time_minutes": 5,
+                "letter": "X",
+                "language": "Java",
+                "verdict": "YES",
+                "is_solved": True,
+            },
+        ]
+
+        mock_users_map = {
+            "disabled_team": {
+                "username": "disabled_team",
+                "userfullname": "Disabled Team Name",
+                "university": "Univ A",
+                "country": "CO",
+                "enabled": "No",
+                "is_enabled": False,
+            },
+            "enabled_team": {
+                "username": "enabled_team",
+                "userfullname": "Enabled Team Name",
+                "university": "Univ B",
+                "country": "PE",
+                "enabled": "Yes",
+                "is_enabled": True,
+            },
+        }
+
+        with patch("app._get_runs_data", return_value=mock_runs):
+            with patch("app._get_users_map", return_value=mock_users_map):
+                resp = self.client.get('/api/first-solutions')
+                self.assertEqual(resp.status_code, 200)
+                data = resp.get_json()
+                self.assertTrue(data['success'])
+
+                fs_map = {fs['problem_letter']: fs for fs in data['first_solutions']}
+                # Problema C debe pertenecer a enabled_team (min 25), NO a disabled_team (min 15)
+                self.assertIn('C', fs_map)
+                self.assertEqual(fs_map['C']['username'], 'enabled_team')
+                self.assertEqual(fs_map['C']['time_minutes'], 25)
+                self.assertEqual(fs_map['C']['enabled'], 'Yes')
+
+                # Problema X no debe tener First Solution porque solo lo resolvió un equipo con enabled "No"
+                self.assertNotIn('X', fs_map)
 
     def test_stats_endpoint(self):
         resp = self.client.get('/api/stats')

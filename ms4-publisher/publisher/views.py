@@ -383,10 +383,17 @@ class PublishFirstSolutionTriggerView(APIView):
         if not fs_data or not isinstance(fs_data, dict):
             return Response({"error": "fs_data es requerido como objeto"}, status=status.HTTP_400_BAD_REQUEST)
 
+        raw_enabled = fs_data.get("enabled")
+        if raw_enabled is not None and str(raw_enabled).strip().lower() != "yes":
+            return Response({
+                "success": False,
+                "error": f"No se puede publicar: El equipo tiene enabled '{raw_enabled}' en BOCA (debe ser 'Yes')."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         ok, result = publish_first_solution_event(fs_data, user=request.user, force=force)
         if ok:
             return Response({"success": True, "post_id": result})
-        return Response({"success": False, "error": result}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"success": False, "error": result}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ScheduleStartView(APIView):
